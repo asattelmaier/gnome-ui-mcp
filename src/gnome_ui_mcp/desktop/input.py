@@ -1,0 +1,480 @@
+from __future__ import annotations
+
+import atexit
+import os
+import subprocess
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from ..runtime.gi_env import Atspi, Gdk, Gio, GLib
+
+JsonDict = dict[str, Any]
+
+CACHE_DIR = Path.home() / ".cache" / "gnome-ui-mcp" / "screenshots"
+GNOME_SCREENSHOT_BIN = "/usr/bin/gnome-screenshot"
+MUTTER_REMOTE_DESKTOP_BUS = "org.gnome.Mutter.RemoteDesktop"
+MUTTER_REMOTE_DESKTOP_PATH = "/org/gnome/Mutter/RemoteDesktop"
+MUTTER_REMOTE_DESKTOP_IFACE = "org.gnome.Mutter.RemoteDesktop"
+MUTTER_REMOTE_DESKTOP_SESSION_IFACE = "org.gnome.Mutter.RemoteDesktop.Session"
+MUTTER_SCREENCAST_BUS = "org.gnome.Mutter.ScreenCast"
+MUTTER_SCREENCAST_PATH = "/org/gnome/Mutter/ScreenCast"
+MUTTER_SCREENCAST_IFACE = "org.gnome.Mutter.ScreenCast"
+MUTTER_SCREENCAST_SESSION_IFACE = "org.gnome.Mutter.ScreenCast.Session"
+REMOTE_POINTER_BUTTONS = {"left": 0x110, "right": 0x111, "middle": 0x112}
+TEXT_KEY_NAME_MAP = {
+    "\n": "Return",
+    "\r": "Return",
+    "\t": "Tab",
+    "\b": "BackSpace",
+    "\x1b": "Escape",
+}
+
+
+@dataclass(frozen=True)
+class _StageArea:
+    origin_x: int
+    origin_y: int
+    width: int
+    height: int
+
+    def local_coordinates(self, x: int, y: int) -> tuple[float, float]:
+        if not (
+            self.origin_x <= x < self.origin_x + self.width
+            and self.origin_y <= y < self.origin_y + self.height
+        ):
+            msg = f"Coordinates ({x}, {y}) are outside the desktop stage"
+            raise ValueError(msg)
+
+        return float(x - self.origin_x), float(y - self.origin_y)
+
+
+class _MutterRemoteDesktopInput:
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._rd_proxy: Gio.DBusProxy | None = None
+        self._sc_proxy: Gio.DBusProxy | None = None
+        self._rd_session: Gio.DBusProxy | None = None
+        self._stream_path: str | None = None
+        self._stage_area: _StageArea | None = None
+        self._started = False
+        atexit.register(self.close)
+
+    def info(self) -> JsonDict:
+        try:
+            proxy = self._root_proxy()
+            version_variant = proxy.get_cached_property("Version")
+            devices_variant = proxy.get_cached_property("SupportedDeviceTypes")
+        except Exception as exc:
+            return {"available": False, "error": str(exc)}
+
+        return {
+            "available": True,
+            "version": version_variant.unpack() if version_variant is not None else None,
+            "supported_device_types": (
+                devices_variant.unpack() if devices_variant is not None else None
+            ),
+        }
+
+    def click_at(self, x: int, y: int, *, button: str = "left") -> JsonDict:
+        button_code = REMOTE_POINTER_BUTTONS.get(button.lower())
+        if button_code is None:
+            msg = "button must be left, middle, or right"
+            raise ValueError(msg)
+
+        stream_path, stage_area = self._ensure_session()
+        local_x, local_y = stage_area.local_coordinates(x, y)
+
+        self._call_session(
+            "NotifyPointerMotionAbsolute",
+            GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
+        )
+        time.sleep(0.02)
+        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
+        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, False)))
+
+        return {
+            "success": True,
+            "x": x,
+            "y": y,
+            "button": button.lower(),
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
+    def press_key(self, key_name: str) -> JsonDict:
+        keyval = _key_name_to_keyval(key_name)
+
+        self._ensure_session()
+        self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (keyval, True)))
+        self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (keyval, False)))
+
+        return {
+            "success": True,
+            "key_name": key_name,
+            "keyval": int(keyval),
+            "backend": "mutter-remote-desktop",
+        }
+
+    def type_text(self, text: str) -> JsonDict:
+        self._ensure_session()
+
+        keyvals = [_text_unit_to_keyval(unit) for unit in _text_units(text)]
+        for keyval in keyvals:
+            self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (keyval, True)))
+            self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (keyval, False)))
+
+        return {
+            "success": True,
+            "text_length": len(text),
+            "backend": "mutter-remote-desktop",
+            "keyvals": keyvals,
+        }
+
+    def close(self) -> None:
+        with self._lock:
+            if self._rd_session is not None and self._started:
+                try:
+                    self._rd_session.call_sync("Stop", None, Gio.DBusCallFlags.NONE, -1, None)
+                except Exception:
+                    pass
+
+            self._rd_session = None
+            self._stream_path = None
+            self._stage_area = None
+            self._started = False
+
+    def _root_proxy(self) -> Gio.DBusProxy:
+        if self._rd_proxy is None:
+            self._rd_proxy = self._dbus_proxy(
+                MUTTER_REMOTE_DESKTOP_BUS,
+                MUTTER_REMOTE_DESKTOP_PATH,
+                MUTTER_REMOTE_DESKTOP_IFACE,
+            )
+        return self._rd_proxy
+
+    def _screen_cast_proxy(self) -> Gio.DBusProxy:
+        if self._sc_proxy is None:
+            self._sc_proxy = self._dbus_proxy(
+                MUTTER_SCREENCAST_BUS,
+                MUTTER_SCREENCAST_PATH,
+                MUTTER_SCREENCAST_IFACE,
+            )
+        return self._sc_proxy
+
+    def _dbus_proxy(self, bus_name: str, object_path: str, interface_name: str) -> Gio.DBusProxy:
+        return Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.DO_NOT_AUTO_START,
+            None,
+            bus_name,
+            object_path,
+            interface_name,
+            None,
+        )
+
+    def _session_id(self, session_proxy: Gio.DBusProxy) -> str:
+        session_id = session_proxy.get_cached_property("SessionId")
+        if session_id is not None:
+            return str(session_id.unpack())
+
+        properties_proxy = self._dbus_proxy(
+            MUTTER_REMOTE_DESKTOP_BUS,
+            session_proxy.get_object_path(),
+            "org.freedesktop.DBus.Properties",
+        )
+        result = properties_proxy.call_sync(
+            "Get",
+            GLib.Variant(
+                "(ss)",
+                (MUTTER_REMOTE_DESKTOP_SESSION_IFACE, "SessionId"),
+            ),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+        )
+        return str(result.unpack()[0])
+
+    def _current_stage_area(self) -> _StageArea:
+        display = Gdk.Display.get_default()
+        if display is None:
+            msg = "GDK display is not available"
+            raise RuntimeError(msg)
+
+        monitor_count = display.get_n_monitors()
+        if monitor_count <= 0:
+            msg = "No monitors are available via GDK"
+            raise RuntimeError(msg)
+
+        rectangles = []
+        for index in range(monitor_count):
+            monitor = display.get_monitor(index)
+            geometry = monitor.get_geometry()
+            rectangles.append((geometry.x, geometry.y, geometry.width, geometry.height))
+
+        min_x = min(x for x, _y, _w, _h in rectangles)
+        min_y = min(y for _x, y, _w, _h in rectangles)
+        max_x = max(x + width for x, _y, width, _h in rectangles)
+        max_y = max(y + height for _x, y, _w, height in rectangles)
+        return _StageArea(
+            origin_x=int(min_x),
+            origin_y=int(min_y),
+            width=int(max_x - min_x),
+            height=int(max_y - min_y),
+        )
+
+    def _ensure_session(self) -> tuple[str, _StageArea]:
+        with self._lock:
+            if (
+                self._rd_session is not None
+                and self._stream_path
+                and self._stage_area
+                and self._started
+            ):
+                return self._stream_path, self._stage_area
+
+            self.close()
+
+            rd_path = (
+                self._root_proxy()
+                .call_sync(
+                    "CreateSession",
+                    None,
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                )
+                .unpack()[0]
+            )
+            self._rd_session = self._dbus_proxy(
+                MUTTER_REMOTE_DESKTOP_BUS,
+                rd_path,
+                MUTTER_REMOTE_DESKTOP_SESSION_IFACE,
+            )
+            session_id = self._session_id(self._rd_session)
+
+            sc_path = (
+                self._screen_cast_proxy()
+                .call_sync(
+                    "CreateSession",
+                    GLib.Variant(
+                        "(a{sv})",
+                        ({"remote-desktop-session-id": GLib.Variant("s", session_id)},),
+                    ),
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                )
+                .unpack()[0]
+            )
+            screen_cast_session = self._dbus_proxy(
+                MUTTER_SCREENCAST_BUS,
+                sc_path,
+                MUTTER_SCREENCAST_SESSION_IFACE,
+            )
+
+            self._stage_area = self._current_stage_area()
+            self._stream_path = screen_cast_session.call_sync(
+                "RecordArea",
+                GLib.Variant(
+                    "(iiiia{sv})",
+                    (
+                        self._stage_area.origin_x,
+                        self._stage_area.origin_y,
+                        self._stage_area.width,
+                        self._stage_area.height,
+                        {"cursor-mode": GLib.Variant("u", 0)},
+                    ),
+                ),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            ).unpack()[0]
+
+            self._rd_session.call_sync("Start", None, Gio.DBusCallFlags.NONE, -1, None)
+            self._started = True
+            time.sleep(0.05)
+
+            return self._stream_path, self._stage_area
+
+    def _call_session(
+        self,
+        method_name: str,
+        parameters: GLib.Variant,
+    ) -> GLib.Variant:
+        for attempt in range(2):
+            with self._lock:
+                self._ensure_session()
+                if self._rd_session is None:
+                    msg = "Remote desktop session is not available"
+                    raise RuntimeError(msg)
+
+                try:
+                    return self._rd_session.call_sync(
+                        method_name,
+                        parameters,
+                        Gio.DBusCallFlags.NONE,
+                        -1,
+                        None,
+                    )
+                except GLib.Error:
+                    if attempt == 0:
+                        self.close()
+                        continue
+                    raise
+
+        msg = f"Failed to call {method_name!r} on the remote desktop session"
+        raise RuntimeError(msg)
+
+
+_REMOTE_INPUT = _MutterRemoteDesktopInput()
+
+
+def _text_units(text: str) -> list[str]:
+    return list(text)
+
+
+def _key_name_to_keyval(key_name: str) -> int:
+    keyval = Gdk.keyval_from_name(key_name)
+    if keyval == 0 and len(key_name) == 1:
+        keyval = Gdk.unicode_to_keyval(ord(key_name))
+    if keyval == 0:
+        msg = f"Unknown key: {key_name}"
+        raise ValueError(msg)
+    return int(keyval)
+
+
+def _text_unit_to_keyval(unit: str) -> int:
+    mapped_key_name = TEXT_KEY_NAME_MAP.get(unit)
+    if mapped_key_name is not None:
+        return _key_name_to_keyval(mapped_key_name)
+
+    if len(unit) != 1:
+        msg = f"Expected a single text unit, got {unit!r}"
+        raise ValueError(msg)
+
+    keyval = Gdk.unicode_to_keyval(ord(unit))
+    if keyval == 0:
+        msg = f"Unable to convert text unit {unit!r} to a GDK keyval"
+        raise ValueError(msg)
+    return int(keyval)
+
+
+def _perform_mouse_click_atspi(x: int, y: int, *, button: str = "left") -> JsonDict:
+    button_map = {"left": "b1c", "middle": "b2c", "right": "b3c"}
+    event_name = button_map.get(button.lower())
+    if event_name is None:
+        msg = "button must be left, middle, or right"
+        raise ValueError(msg)
+
+    Atspi.generate_mouse_event(x, y, "abs")
+    time.sleep(0.05)
+    Atspi.generate_mouse_event(x, y, event_name)
+
+    return {"success": True, "x": x, "y": y, "button": button.lower(), "backend": "atspi"}
+
+
+def perform_mouse_click(x: int, y: int, *, button: str = "left") -> JsonDict:
+    try:
+        return _REMOTE_INPUT.click_at(x, y, button=button)
+    except Exception as exc:
+        result = _perform_mouse_click_atspi(x, y, button=button)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_key_press_atspi(key_name: str) -> JsonDict:
+    try:
+        keyval = _key_name_to_keyval(key_name)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
+
+    success = Atspi.generate_keyboard_event(
+        keyval,
+        key_name,
+        Atspi.KeySynthType.PRESSRELEASE,
+    )
+
+    return {
+        "success": bool(success),
+        "key_name": key_name,
+        "keyval": int(keyval),
+        "backend": "atspi",
+    }
+
+
+def press_key(key_name: str) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.press_key(key_name)
+    except Exception as exc:
+        result = _perform_key_press_atspi(key_name)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_type_text_atspi(text: str) -> JsonDict:
+    success = Atspi.generate_keyboard_event(0, text, Atspi.KeySynthType.STRING)
+    return {"success": bool(success), "text_length": len(text), "backend": "atspi"}
+
+
+def type_text(text: str) -> JsonDict:
+    if text == "":
+        return {"success": True, "text_length": 0, "backend": "mutter-remote-desktop"}
+
+    try:
+        return _REMOTE_INPUT.type_text(text)
+    except Exception as exc:
+        result = _perform_type_text_atspi(text)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _child_process_env() -> JsonDict:
+    env: JsonDict = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(Path.home()),
+    }
+
+    for key in (
+        "DBUS_SESSION_BUS_ADDRESS",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "XDG_SESSION_TYPE",
+    ):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+
+    return env
+
+
+def remote_input_info() -> JsonDict:
+    return _REMOTE_INPUT.info()
+
+
+def screenshot(filename: str | None = None) -> JsonDict:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    output = (
+        Path(filename).expanduser()
+        if filename
+        else CACHE_DIR / f"screenshot-{int(time.time() * 1000)}.png"
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        [GNOME_SCREENSHOT_BIN, "-f", str(output)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_child_process_env(),
+    )
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": result.stderr.strip() or "gnome-screenshot failed",
+        }
+
+    return {"success": True, "path": str(output)}

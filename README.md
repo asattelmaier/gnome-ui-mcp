@@ -1,0 +1,98 @@
+# gnome-ui-mcp
+
+Small MCP server for GNOME Wayland desktop automation.
+
+It exposes GNOME desktop inspection and interaction through AT-SPI for discovery and Mutter RemoteDesktop for input. In practice that means element lookup, activation, typing, screenshots, and wait helpers for the current desktop session.
+
+## Requirements
+
+- Linux host with GNOME Shell on Wayland
+- Live local GNOME session on the machine you want to automate
+- Session environment available: `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_SESSION_TYPE`
+
+### Docker
+
+- Docker Engine
+- Access to the Docker socket
+
+The container must run on the same machine as the GNOME session and use the session environment plus runtime mounts.
+
+## Docker image
+
+The recommended way to run the server is via the published GHCR image:
+
+```text
+ghcr.io/asattelmaier/gnome-ui-mcp:latest
+```
+
+`latest` is published from `main`. Version tags such as `v0.1.0` publish matching image tags as well.
+
+## Docker setup
+
+Direct `docker run`:
+
+```bash
+docker run --rm \
+  --network host \
+  --user "$(id -u):$(id -g)" \
+  -e DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+  -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  -e WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
+  -e DISPLAY="$DISPLAY" \
+  -e XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+  -v "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR" \
+  -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+  ghcr.io/asattelmaier/gnome-ui-mcp:latest
+```
+
+Local development via Compose:
+
+This path additionally requires `docker compose`.
+
+1. Copy `.env.example` to `.env`
+2. Adjust the values to your session
+3. Run:
+
+```bash
+docker compose build
+docker compose run --rm gnome-ui-mcp
+```
+
+## Example MCP client configuration
+
+```json
+{
+  "mcpServers": {
+    "gnome-ui": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "--user",
+        "1000:1000",
+        "-e",
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+        "-e",
+        "XDG_RUNTIME_DIR=/run/user/1000",
+        "-e",
+        "WAYLAND_DISPLAY=wayland-0",
+        "-e",
+        "DISPLAY=:0",
+        "-e",
+        "XDG_SESSION_TYPE=wayland",
+        "-v",
+        "/run/user/1000:/run/user/1000",
+        "-v",
+        "/tmp/.X11-unix:/tmp/.X11-unix:ro",
+        "ghcr.io/asattelmaier/gnome-ui-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+## Security
+
+This server can inspect and control the active desktop session. Use it only with trusted MCP clients.

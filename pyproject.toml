@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gnome-ui-mcp"
+version = "0.1.0"
+description = "Small MCP server for GNOME Wayland desktop automation via AT-SPI and Mutter."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Alexander Sattelmaier" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "mcp==1.26.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/asattelmaier/gnome-ui-mcp"
+Repository = "https://github.com/asattelmaier/gnome-ui-mcp"
+
+[project.scripts]
+gnome-ui-mcp = "gnome_ui_mcp.__main__:main"
+
+[dependency-groups]
+dev = [
+  "ruff==0.12.12",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gnome_ui_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/scripts",
+  "/README.md",
+  "/LICENSE",
+  "/CONTRIBUTING.md",
+  "/compose.yaml",
+  "/Dockerfile",
+  "/.env.example",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/gnome_ui_mcp/runtime/gi_env.py" = ["E402", "I001"]
+"scripts/smoke_test_app.py" = ["E402", "I001"]

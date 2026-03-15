@@ -1,0 +1,18 @@
+services:
+  gnome-ui-mcp:
+    build:
+      context: .
+    image: gnome-ui-mcp:local
+    user: "${UID:-1000}:${GID:-1000}"
+    stdin_open: true
+    tty: true
+    network_mode: host
+    environment:
+      DBUS_SESSION_BUS_ADDRESS: "${DBUS_SESSION_BUS_ADDRESS}"
+      DISPLAY: "${DISPLAY}"
+      WAYLAND_DISPLAY: "${WAYLAND_DISPLAY}"
+      XDG_RUNTIME_DIR: "${XDG_RUNTIME_DIR}"
+      XDG_SESSION_TYPE: "${XDG_SESSION_TYPE:-wayland}"
+    volumes:
+      - "${XDG_RUNTIME_DIR}:${XDG_RUNTIME_DIR}"
+      - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
