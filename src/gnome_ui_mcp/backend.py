@@ -51,6 +51,8 @@ def find_elements(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     return accessibility.find_elements(
         query=query,
@@ -61,6 +63,8 @@ def find_elements(
         showing_only=showing_only,
         clickable_only=clickable_only,
         bounds_only=bounds_only,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
     )
 
 
@@ -78,6 +82,32 @@ def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
     return interaction.activate_element(element_id=element_id, action_name=action_name)
+
+
+def find_and_activate(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    max_depth: int = 8,
+    showing_only: bool = True,
+    clickable_only: bool = False,
+    bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
+    action_name: str | None = None,
+) -> JsonDict:
+    return interaction.find_and_activate(
+        query=query,
+        app_name=app_name,
+        role=role,
+        max_depth=max_depth,
+        showing_only=showing_only,
+        clickable_only=clickable_only,
+        bounds_only=bounds_only,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
+        action_name=action_name,
+    )
 
 
 def click_at(x: int, y: int, button: str = "left") -> JsonDict:
@@ -129,6 +159,8 @@ def wait_for_element(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     return accessibility.wait_for_element(
         query=query,
@@ -139,6 +171,8 @@ def wait_for_element(
         showing_only=showing_only,
         clickable_only=clickable_only,
         bounds_only=bounds_only,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
     )
 
 
@@ -151,6 +185,8 @@ def wait_for_element_gone(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     return accessibility.wait_for_element_gone(
         query=query,
@@ -161,4 +197,6 @@ def wait_for_element_gone(
         showing_only=showing_only,
         clickable_only=clickable_only,
         bounds_only=bounds_only,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
     )

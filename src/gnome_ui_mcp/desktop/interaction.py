@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import accessibility, input
+from .locators import locator_for_element_id, relocate_from_locator
 
 JsonDict = dict[str, Any]
 
@@ -86,29 +87,75 @@ def _activation_keys_for_role(role_name: str) -> list[str]:
     return ["Return", "space"]
 
 
-def resolve_click_target(element_id: str) -> JsonDict:
+def _resolve_target_with_recovery(element_id: str) -> tuple[str, JsonDict, JsonDict | None]:
+    last_error = ""
+
     try:
         target = accessibility._resolve_click_target_metadata(element_id)
+        target_id = str(target["target_id"])
+        accessible = accessibility._resolve_element(target_id)
+        if accessibility._is_showing(accessible):
+            return element_id, target, None
+        last_error = "Element is not currently showing on screen"
     except Exception as exc:
-        return {"success": False, "error": str(exc), "element_id": element_id}
+        last_error = str(exc)
 
-    return {
-        "success": True,
-        "element_id": element_id,
-        "click_target": target,
-    }
+    locator = locator_for_element_id(element_id)
+    if locator is None:
+        raise ValueError(last_error or f"Element not found: {element_id}")
 
+    relocated = relocate_from_locator(locator, max_results=1)
+    if not relocated.get("success"):
+        error = str(relocated.get("error", "Failed to relocate element"))
+        if last_error:
+            error = f"{last_error}; {error}"
+        raise ValueError(error)
 
-def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
-    target = accessibility._resolve_click_target_metadata(element_id)
+    match = relocated["match"]
+    recovered_element_id = str(match["id"])
+    target = match.get("click_target")
+    if target is None:
+        target = accessibility._resolve_click_target_metadata(recovered_element_id)
+
     target_id = str(target["target_id"])
     accessible = accessibility._resolve_element(target_id)
     if not accessibility._is_showing(accessible):
-        return {
-            "success": False,
-            "error": "Element is not currently showing on screen",
-            "element_id": element_id,
-        }
+        raise ValueError("Recovered element is not currently showing on screen")
+
+    return (
+        recovered_element_id,
+        target,
+        {
+            "used": True,
+            "requested_element_id": element_id,
+            "recovered_element_id": recovered_element_id,
+            "locator": locator,
+            "match": match,
+        },
+    )
+
+
+def resolve_click_target(element_id: str) -> JsonDict:
+    try:
+        resolved_element_id, target, recovery = _resolve_target_with_recovery(element_id)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
+
+    result = {
+        "success": True,
+        "element_id": element_id,
+        "resolved_element_id": resolved_element_id,
+        "click_target": target,
+    }
+    if recovery is not None:
+        result["recovery"] = recovery
+    return result
+
+
+def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
+    resolved_element_id, target, recovery = _resolve_target_with_recovery(element_id)
+    target_id = str(target["target_id"])
+    accessible = accessibility._resolve_element(target_id)
 
     before = _effect_context(target_id)
     action_index = accessibility._find_action_index(accessible, action_name)
@@ -117,6 +164,7 @@ def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
         result = {
             "method": "action",
             "element_id": element_id,
+            "resolved_element_id": resolved_element_id,
             "target_element_id": target_id,
             "click_target": target,
             "action_index": action_index,
@@ -127,12 +175,15 @@ def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
         }
         after = _effect_context(target_id)
         verified, verification = _verify_effect(before, after)
-        return _apply_interaction_result(
+        response = _apply_interaction_result(
             result,
             input_injected=bool(performed),
             effect_verified=verified,
             verification=verification,
         )
+        if recovery is not None:
+            response["recovery"] = recovery
+        return response
 
     bounds = accessibility._element_bounds(accessible)
     center = accessibility._center(bounds)
@@ -146,28 +197,33 @@ def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
     after = _effect_context(target_id)
     verified, verification = _verify_effect(before, after)
     result["element_id"] = element_id
+    result["resolved_element_id"] = resolved_element_id
     result["target_element_id"] = target_id
     result["click_target"] = target
     result["method"] = "mouse"
-    return _apply_interaction_result(
+    response = _apply_interaction_result(
         result,
         input_injected=bool(result.get("success")),
         effect_verified=verified,
         verification=verification,
     )
+    if recovery is not None:
+        response["recovery"] = recovery
+    return response
 
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
-    target = accessibility._resolve_click_target_metadata(element_id)
-    target_id = str(target["target_id"])
-    accessible = accessibility._resolve_element(target_id)
-    if not accessibility._is_showing(accessible):
+    try:
+        resolved_element_id, target, recovery = _resolve_target_with_recovery(element_id)
+    except Exception as exc:
         return {
             "success": False,
-            "error": "Element is not currently showing on screen",
+            "error": str(exc),
             "element_id": element_id,
-            "target_element_id": target_id,
         }
+
+    target_id = str(target["target_id"])
+    accessible = accessibility._resolve_element(target_id)
 
     attempts: list[JsonDict] = []
     current_before = _effect_context(target_id)
@@ -195,10 +251,12 @@ def activate_element(element_id: str, action_name: str | None = None) -> JsonDic
             return {
                 "success": True,
                 "element_id": element_id,
+                "resolved_element_id": resolved_element_id,
                 "target_element_id": target_id,
                 "click_target": target,
                 "activation_method": attempt["method"],
                 "attempts": attempts,
+                "recovery": recovery,
             }
         current_before = current_after
 
@@ -226,10 +284,12 @@ def activate_element(element_id: str, action_name: str | None = None) -> JsonDic
                 return {
                     "success": True,
                     "element_id": element_id,
+                    "resolved_element_id": resolved_element_id,
                     "target_element_id": target_id,
                     "click_target": target,
                     "activation_method": attempt["method"],
                     "attempts": attempts,
+                    "recovery": recovery,
                 }
             current_before = current_after
 
@@ -259,20 +319,68 @@ def activate_element(element_id: str, action_name: str | None = None) -> JsonDic
             return {
                 "success": True,
                 "element_id": element_id,
+                "resolved_element_id": resolved_element_id,
                 "target_element_id": target_id,
                 "click_target": target,
                 "activation_method": attempt["method"],
                 "attempts": attempts,
+                "recovery": recovery,
             }
 
     return {
         "success": False,
         "error": "No activation strategy produced an observable effect",
         "element_id": element_id,
+        "resolved_element_id": resolved_element_id,
         "target_element_id": target_id,
         "click_target": target,
         "attempts": attempts,
+        "recovery": recovery,
     }
+
+
+def find_and_activate(
+    query: str,
+    *,
+    app_name: str | None = None,
+    role: str | None = None,
+    max_depth: int = 8,
+    showing_only: bool = True,
+    clickable_only: bool = False,
+    bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
+    action_name: str | None = None,
+) -> JsonDict:
+    result = accessibility.find_elements(
+        query=query,
+        app_name=app_name,
+        role=role,
+        max_depth=max_depth,
+        max_results=1,
+        showing_only=showing_only,
+        clickable_only=clickable_only,
+        bounds_only=bounds_only,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
+    )
+    matches = result.get("matches", [])
+    if not matches:
+        return {
+            "success": False,
+            "error": "No element matched query",
+            "query": query,
+            "app_name": app_name,
+            "role": role,
+            "within_element_id": within_element_id,
+            "within_popup": within_popup,
+        }
+
+    match = matches[0]
+    activation = activate_element(str(match["id"]), action_name=action_name)
+    activation["match"] = match
+    activation["locator"] = match.get("locator")
+    return activation
 
 
 def click_at(x: int, y: int, button: str = "left") -> JsonDict:

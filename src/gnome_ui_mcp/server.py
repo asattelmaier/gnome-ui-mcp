@@ -73,7 +73,7 @@ def accessibility_tree(
 @mcp.tool(
     description=(
         "Search accessible elements by text and optional role filter, with optional clickable "
-        "and bounds filters."
+        "and bounds filters, optionally scoped to a subtree or visible popup."
     )
 )
 def find_elements(
@@ -85,6 +85,8 @@ def find_elements(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.find_elements(
@@ -96,6 +98,8 @@ def find_elements(
             showing_only=showing_only,
             clickable_only=clickable_only,
             bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
         )
     )
 
@@ -139,6 +143,40 @@ def activate_element(element_id: str, action_name: str | None = None) -> CallToo
     return _run_tool(
         lambda: backend.activate_element(
             element_id=element_id,
+            action_name=action_name,
+        )
+    )
+
+
+@mcp.tool(
+    description=(
+        "Find the best matching element and activate it, optionally scoped to a subtree or "
+        "visible popup."
+    )
+)
+def find_and_activate(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    max_depth: int = 8,
+    showing_only: bool = True,
+    clickable_only: bool = False,
+    bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
+    action_name: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.find_and_activate(
+            query=query,
+            app_name=app_name,
+            role=role,
+            max_depth=max_depth,
+            showing_only=showing_only,
+            clickable_only=clickable_only,
+            bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
             action_name=action_name,
         )
     )
@@ -204,7 +242,8 @@ def visible_shell_popups() -> CallToolResult:
 
 @mcp.tool(
     description=(
-        "Poll the accessibility tree until a matching element appears or the timeout expires."
+        "Poll the accessibility tree until a matching element appears or the timeout expires, "
+        "optionally scoped to a subtree or visible popup."
     )
 )
 def wait_for_element(
@@ -216,6 +255,8 @@ def wait_for_element(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.wait_for_element(
@@ -227,13 +268,16 @@ def wait_for_element(
             showing_only=showing_only,
             clickable_only=clickable_only,
             bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
         )
     )
 
 
 @mcp.tool(
     description=(
-        "Poll the accessibility tree until a matching element disappears or the timeout expires."
+        "Poll the accessibility tree until a matching element disappears or the timeout "
+        "expires, optionally scoped to a subtree or visible popup."
     )
 )
 def wait_for_element_gone(
@@ -245,6 +289,8 @@ def wait_for_element_gone(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.wait_for_element_gone(
@@ -256,5 +302,7 @@ def wait_for_element_gone(
             showing_only=showing_only,
             clickable_only=clickable_only,
             bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
         )
     )

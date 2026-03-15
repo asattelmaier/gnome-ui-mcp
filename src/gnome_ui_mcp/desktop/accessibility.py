@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from ..runtime.gi_env import Atspi
+from .locators import build_locator, remember_locator
 
 JsonDict = dict[str, Any]
 
@@ -349,6 +350,58 @@ def _shell_popup_signature() -> list[str]:
     return sorted(item["id"] for item in _visible_shell_popup_matches())
 
 
+def _search_roots(
+    *,
+    app_name: str | None,
+    within_element_id: str | None,
+    within_popup: bool,
+    max_depth: int,
+) -> list[JsonDict]:
+    if within_element_id is not None:
+        return [
+            {
+                "accessible": _resolve_element(within_element_id),
+                "path": tuple(_id_to_path(within_element_id)),
+                "application": _application_name_for_element_id(within_element_id),
+                "scope": {
+                    "type": "element",
+                    "within_element_id": within_element_id,
+                },
+            }
+        ]
+
+    if within_popup:
+        roots: list[JsonDict] = []
+        for popup in _visible_shell_popup_matches(max_depth=max_depth):
+            popup_id = str(popup["id"])
+            roots.append(
+                {
+                    "accessible": _resolve_element(popup_id),
+                    "path": tuple(_id_to_path(popup_id)),
+                    "application": str(popup.get("application", "")),
+                    "scope": {
+                        "type": "popup",
+                        "within_popup": True,
+                        "popup_id": popup_id,
+                    },
+                }
+            )
+        return roots
+
+    return [
+        {
+            "accessible": app,
+            "path": app_path,
+            "application": _safe_call(app.get_name, ""),
+            "scope": {
+                "type": "application",
+                "app_name": _safe_call(app.get_name, ""),
+            },
+        }
+        for app, app_path in _select_applications(app_name)
+    ]
+
+
 def _element_interaction_metadata(element_id: str) -> JsonDict:
     accessible = _resolve_element(element_id)
     states = _element_states(accessible)
@@ -493,12 +546,22 @@ def find_elements(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     matches: list[JsonDict] = []
     role_query = role.casefold() if role else None
 
-    for app, app_path in _select_applications(app_name):
-        app_label = _safe_call(app.get_name, "")
+    for root in _search_roots(
+        app_name=app_name,
+        within_element_id=within_element_id,
+        within_popup=within_popup,
+        max_depth=max_depth,
+    ):
+        app = root["accessible"]
+        app_path = root["path"]
+        app_label = str(root["application"])
+        scope = dict(root["scope"])
         for element, path, _depth in _walk_tree(app, app_path, depth=0, max_depth=max_depth):
             name = _safe_call(element.get_name, "")
             description = _safe_call(element.get_description, "")
@@ -533,6 +596,35 @@ def find_elements(
 
             item = _element_summary(element, path, include_actions=True, include_text=True)
             item["application"] = app_label
+            item["scope"] = scope
+            item["locator"] = build_locator(
+                name=name,
+                description=description,
+                role_name=role_name,
+                app_label=app_label,
+                within_element_id=(
+                    str(scope["within_element_id"])
+                    if scope.get("within_element_id") is not None
+                    else None
+                ),
+                within_popup=bool(scope.get("within_popup")),
+            )
+            remember_locator(item["id"], item["locator"])
+
+            if click_target is not None:
+                click_target["locator"] = build_locator(
+                    name=str(click_target.get("target_name", "")) or name,
+                    description=description,
+                    role_name=str(click_target.get("target_role", "")),
+                    app_label=app_label,
+                    within_element_id=(
+                        str(scope["within_element_id"])
+                        if scope.get("within_element_id") is not None
+                        else None
+                    ),
+                    within_popup=bool(scope.get("within_popup")),
+                )
+                remember_locator(str(click_target["target_id"]), click_target["locator"])
             item["click_target"] = click_target
             matches.append(item)
 
@@ -619,6 +711,8 @@ def wait_for_element(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
@@ -630,6 +724,8 @@ def wait_for_element(
             showing_only=showing_only,
             clickable_only=clickable_only,
             bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
         )
         matches = result.get("matches", [])
         if matches:
@@ -653,6 +749,8 @@ def wait_for_element_gone(
     showing_only: bool = True,
     clickable_only: bool = False,
     bounds_only: bool = False,
+    within_element_id: str | None = None,
+    within_popup: bool = False,
 ) -> JsonDict:
     deadline = time.monotonic() + timeout_ms / 1000
     last_match: JsonDict | None = None
@@ -665,6 +763,8 @@ def wait_for_element_gone(
             showing_only=showing_only,
             clickable_only=clickable_only,
             bounds_only=bounds_only,
+            within_element_id=within_element_id,
+            within_popup=within_popup,
         )
         matches = result.get("matches", [])
         if not matches:
