@@ -99,7 +99,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   [[ -z "$worktree_issue" ]] || echo "Would fail now: $worktree_issue"
   [[ -z "$tag_issue" ]] || echo "Would fail now: $tag_issue"
   echo "Dry run only. No files were changed."
-  echo "Would update: pyproject.toml, server.json"
+  echo "Would update: pyproject.toml, server.json, uv.lock"
+  echo "Would run:    uv lock"
   echo "Would run:    ./scripts/bootstrap.sh"
   echo "Would run:    ./scripts/check.sh"
   echo "Would commit: Release version ${next_version}"
@@ -143,6 +144,7 @@ for package in server.get("packages", []):
 server_path.write_text(json.dumps(server, indent=2) + "\n", encoding="utf-8")
 PY
 
+uv lock
 ./scripts/bootstrap.sh
 ./scripts/check.sh
 

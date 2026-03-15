@@ -35,9 +35,9 @@ Preferred path:
 ./scripts/release.sh patch
 ```
 
-The script updates `pyproject.toml` and `server.json`, refreshes the local
-environment, runs `./scripts/check.sh`, creates the release commit, and adds
-the annotated tag locally. It does not push.
+The script updates `pyproject.toml`, `server.json`, and `uv.lock`, refreshes
+the local environment, runs `./scripts/check.sh`, creates the release commit,
+and adds the annotated tag locally. It does not push.
 
 You can also release an explicit version:
 
