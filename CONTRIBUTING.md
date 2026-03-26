@@ -4,7 +4,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y python3.12 python3.12-venv python3-gi gir1.2-atspi-2.0 gir1.2-gtk-3.0 gnome-screenshot
+sudo apt install -y python3 python3-venv python3-gi gir1.2-atspi-2.0 gir1.2-gtk-3.0 gnome-screenshot
 ./scripts/bootstrap.sh
 ```
 
