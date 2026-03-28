@@ -5,7 +5,7 @@ import time
 from .desktop import accessibility, input, interaction
 import shutil
 
-from .desktop import accessibility, dbus, display, input, interaction, notifications, workspaces
+from .desktop import accessibility, dbus, display, input, interaction, notifications, screencast, workspaces
 
 JsonDict = dict[str, object]
 
@@ -373,3 +373,22 @@ def notification_monitor_read(clear: bool = True) -> JsonDict:
 
 def notification_monitor_stop() -> JsonDict:
     return notifications.notification_monitor_stop()
+
+
+def screen_record_start(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    framerate: int = 30,
+    draw_cursor: bool = True,
+) -> JsonDict:
+    return screencast.screen_record_start(
+        x=x, y=y, width=width, height=height, framerate=framerate, draw_cursor=draw_cursor
+    )
+
+
+def screen_record_stop(
+    to_gif: bool = False, gif_fps: int = 10, gif_width: int = 640
+) -> JsonDict:
+    return screencast.screen_record_stop(to_gif=to_gif, gif_fps=gif_fps, gif_width=gif_width)

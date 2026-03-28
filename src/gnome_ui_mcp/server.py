@@ -542,3 +542,30 @@ def notification_monitor_read(clear: bool = True) -> CallToolResult:
 @mcp.tool(description="Stop monitoring desktop notifications.")
 def notification_monitor_stop() -> CallToolResult:
     return _run_tool(backend.notification_monitor_stop)
+
+
+@mcp.tool(description="Start recording the screen or a region to video (MP4).")
+def screen_record_start(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    framerate: int = 30,
+    draw_cursor: bool = True,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screen_record_start(
+            x=x, y=y, width=width, height=height, framerate=framerate, draw_cursor=draw_cursor
+        )
+    )
+
+
+@mcp.tool(description="Stop recording and optionally convert to GIF.")
+def screen_record_stop(
+    to_gif: bool = False,
+    gif_fps: int = 10,
+    gif_width: int = 640,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screen_record_stop(to_gif=to_gif, gif_fps=gif_fps, gif_width=gif_width)
+    )
