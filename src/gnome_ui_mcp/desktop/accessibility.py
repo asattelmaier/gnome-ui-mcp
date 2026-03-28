@@ -89,7 +89,10 @@ def _element_states(accessible: Atspi.Accessible) -> list[str]:
 
 
 def _is_showing(accessible: Atspi.Accessible) -> bool:
-    return "showing" in _element_states(accessible)
+    state_set = _safe_call(accessible.get_state_set)
+    if state_set is None:
+        return False
+    return bool(_safe_call(lambda: state_set.contains(Atspi.StateType.SHOWING), False))
 
 
 def _contains_point(bounds: JsonDict | None, x: int, y: int) -> bool:
