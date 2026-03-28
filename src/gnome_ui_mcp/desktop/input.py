@@ -388,9 +388,9 @@ def _text_units(text: str) -> list[str]:
 
 def _key_name_to_keyval(key_name: str) -> int:
     keyval = Gdk.keyval_from_name(key_name)
-    if keyval == 0 and len(key_name) == 1:
+    if keyval == Gdk.KEY_VoidSymbol and len(key_name) == 1:
         keyval = Gdk.unicode_to_keyval(ord(key_name))
-    if keyval == 0:
+    if keyval == Gdk.KEY_VoidSymbol:
         msg = f"Unknown key: {key_name}"
         raise ValueError(msg)
     return int(keyval)
@@ -406,7 +406,7 @@ def _text_unit_to_keyval(unit: str) -> int:
         raise ValueError(msg)
 
     keyval = Gdk.unicode_to_keyval(ord(unit))
-    if keyval == 0:
+    if keyval == Gdk.KEY_VoidSymbol:
         msg = f"Unable to convert text unit {unit!r} to a GDK keyval"
         raise ValueError(msg)
     return int(keyval)
