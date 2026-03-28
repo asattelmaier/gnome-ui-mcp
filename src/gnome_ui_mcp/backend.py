@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction
-import shutil
-
 from .desktop import accessibility, app_log, input, interaction, wayland_info
 
 JsonDict = dict[str, object]
@@ -322,8 +319,10 @@ def wait_for_element_gone(
         within_popup=within_popup,
     )
 
+
 def wayland_protocols(filter_protocol: str | None = None) -> JsonDict:
     return wayland_info.wayland_info(filter_protocol=filter_protocol)
+
 
 def launch_with_logging(command: str) -> JsonDict:
     return app_log.launch_with_logging(command=command)
