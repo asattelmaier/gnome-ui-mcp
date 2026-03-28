@@ -756,6 +756,66 @@ def set_element_text(element_id: str, text: str) -> JsonDict:
     return {"success": True, "element_id": element_id, "text_length": len(text)}
 
 
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> JsonDict:
+    accessible = _resolve_element(element_id)
+    text_iface = _safe_call(accessible.get_text_iface)
+    if text_iface is None:
+        return {"success": False, "error": "Element does not support the Text interface"}
+
+    states = _element_states(accessible)
+    if "selectable-text" not in states:
+        return {
+            "success": False,
+            "error": "Element does not support text selection (missing selectable-text state)",
+        }
+
+    char_count = _safe_call(text_iface.get_character_count, 0) or 0
+    if char_count <= 0:
+        return {"success": False, "error": "Element has no text content to select"}
+
+    if (start_offset is None) != (end_offset is None):
+        return {
+            "success": False,
+            "error": "Both start_offset and end_offset must be provided, or neither for select-all",
+        }
+
+    if start_offset is None:
+        start_offset = 0
+        end_offset = char_count - 1
+    else:
+        assert end_offset is not None
+        if start_offset > end_offset:
+            start_offset, end_offset = end_offset, start_offset
+        start_offset = max(0, start_offset)
+        end_offset = min(end_offset, char_count - 1)
+
+    if start_offset >= end_offset:
+        return {"success": False, "error": "Empty selection range after clamping"}
+
+    # Clear existing selections
+    n_existing = _safe_call(text_iface.get_n_selections, 0) or 0
+    for _ in range(n_existing):
+        _safe_call(lambda: text_iface.remove_selection(0))
+
+    added = _safe_call(lambda: text_iface.add_selection(start_offset, end_offset), False)
+    if not added:
+        return {"success": False, "error": "AT-SPI add_selection failed"}
+
+    selected_text = _safe_call(lambda: text_iface.get_text(start_offset, end_offset), "")
+    return {
+        "success": True,
+        "element_id": element_id,
+        "character_count": char_count,
+        "selection_start": start_offset,
+        "selection_end": end_offset,
+        "selected_text": selected_text,
+    }
+
+
 def element_at_point(
     x: int,
     y: int,

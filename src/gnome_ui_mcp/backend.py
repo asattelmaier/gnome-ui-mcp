@@ -129,6 +129,16 @@ def set_element_text(element_id: str, text: str) -> JsonDict:
     return accessibility.set_element_text(element_id=element_id, text=text)
 
 
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> JsonDict:
+    return accessibility.select_element_text(
+        element_id=element_id, start_offset=start_offset, end_offset=end_offset
+    )
+
+
 def type_text(text: str) -> JsonDict:
     return input.type_text(text=text)
 
