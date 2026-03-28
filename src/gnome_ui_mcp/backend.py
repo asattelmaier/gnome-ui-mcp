@@ -185,8 +185,20 @@ def key_combo(
     )
 
 
-def screenshot(filename: str | None = None) -> JsonDict:
-    return input.screenshot(filename=filename)
+def screenshot(
+    filename: str | None = None,
+    output_format: str | None = None,
+    quality: int = 85,
+    max_width: int | None = None,
+    scale_to_logical: bool = False,
+) -> JsonDict:
+    return input.screenshot(
+        filename=filename,
+        output_format=output_format,
+        quality=quality,
+        max_width=max_width,
+        scale_to_logical=scale_to_logical,
+    )
 
 
 def screenshot_area(

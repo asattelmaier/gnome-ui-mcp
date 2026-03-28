@@ -7,9 +7,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
+
 from ..runtime.gi_env import Atspi, Gdk, Gio, GLib
 
 JsonDict = dict[str, Any]
+
+
+def get_display_scale_factor() -> int:
+    try:
+        display = Gdk.Display.get_default()
+        if display is None:
+            return 1
+        count = display.get_n_monitors()
+        if count <= 0:
+            return 1
+        monitor = display.get_monitor(0)
+        return int(monitor.get_scale_factor())
+    except Exception:
+        return 1
+
 
 CACHE_DIR = Path.home() / ".cache" / "gnome-ui-mcp" / "screenshots"
 GNOME_SHELL_SCREENSHOT_BUS = "org.gnome.Shell.Screenshot"
@@ -518,14 +535,23 @@ def _perform_mouse_click_atspi(
     }
 
 
-def perform_mouse_click(x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
+def perform_mouse_click(
+    x: int, y: int, *, button: str = "left", click_count: int = 1, coordinate_space: str = "logical"
+) -> JsonDict:
     if not (1 <= click_count <= 3):
         msg = f"click_count must be 1, 2, or 3 (got {click_count})"
         raise ValueError(msg)
+    actual_x, actual_y = x, y
+    if coordinate_space == "pixel":
+        scale = get_display_scale_factor()
+        if scale > 1:
+            actual_x = x // scale
+            actual_y = y // scale
+
     try:
-        return _REMOTE_INPUT.click_at(x, y, button=button, click_count=click_count)
+        return _REMOTE_INPUT.click_at(actual_x, actual_y, button=button, click_count=click_count)
     except Exception as exc:
-        result = _perform_mouse_click_atspi(x, y, button=button, click_count=click_count)
+        result = _perform_mouse_click_atspi(actual_x, actual_y, button=button, click_count=click_count)
         result["fallback_error"] = str(exc)
         return result
 
@@ -857,7 +883,13 @@ def screenshot_info() -> JsonDict:
         return {"available": False, "error": str(exc)}
 
 
-def screenshot(filename: str | None = None) -> JsonDict:
+def screenshot(
+    filename: str | None = None,
+    output_format: str | None = None,
+    quality: int = 85,
+    max_width: int | None = None,
+    scale_to_logical: bool = False,
+) -> JsonDict:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     if filename:
         output = Path(filename).expanduser().resolve()
@@ -878,7 +910,41 @@ def screenshot(filename: str | None = None) -> JsonDict:
     if not success:
         return {"success": False, "error": "Shell screenshot returned failure"}
 
-    return {"success": True, "path": filename_used}
+    scale_factor = get_display_scale_factor()
+    img = Image.open(filename_used)
+    pixel_w, pixel_h = img.size
+    logical_w = pixel_w // scale_factor
+    logical_h = pixel_h // scale_factor
+
+    needs_save = False
+    final_path = filename_used
+
+    if scale_to_logical and scale_factor > 1:
+        img = img.resize((logical_w, logical_h), Image.Resampling.LANCZOS)
+        needs_save = True
+
+    if max_width and img.size[0] > max_width:
+        ratio = max_width / img.size[0]
+        new_h = int(img.size[1] * ratio)
+        img = img.resize((max_width, new_h), Image.Resampling.LANCZOS)
+        needs_save = True
+
+    if output_format and output_format.lower() in ("jpeg", "jpg"):
+        final_path = str(Path(filename_used).with_suffix(".jpg"))
+        if img.mode == "RGBA":
+            img = img.convert("RGB")
+        img.save(final_path, format="JPEG", quality=quality)
+        needs_save = False
+    elif needs_save:
+        img.save(filename_used)
+
+    return {
+        "success": True,
+        "path": final_path,
+        "scale_factor": scale_factor,
+        "pixel_size": [pixel_w, pixel_h],
+        "logical_size": [logical_w, logical_h],
+    }
 
 
 def screenshot_area(
