@@ -477,3 +477,8 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(description="List Wayland protocols available in the session.")
+def wayland_protocols(filter_protocol: str | None = None) -> CallToolResult:
+    return _run_tool(lambda: backend.wayland_protocols(filter_protocol=filter_protocol))
