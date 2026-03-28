@@ -530,7 +530,9 @@ def toggle_overview(active: bool | None = None) -> CallToolResult:
 
 
 @mcp.tool(
-    description="Start monitoring desktop notifications. Call notification_monitor_read to retrieve them."
+    description=(
+        "Start monitoring desktop notifications. Call notification_monitor_read to retrieve them."
+    )
 )
 def notification_monitor_start() -> CallToolResult:
     return _run_tool(backend.notification_monitor_start)

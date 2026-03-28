@@ -16,7 +16,7 @@ def _unpack_variant(val: Any) -> Any:
         return _unpack_variant(val.unpack())
     if isinstance(val, dict):
         return {k: _unpack_variant(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple)):
+    if isinstance(val, list | tuple):
         return [_unpack_variant(item) for item in val]
     return val
 

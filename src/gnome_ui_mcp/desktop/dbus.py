@@ -27,7 +27,7 @@ def _deep_unpack(val: Any) -> Any:
         return _deep_unpack(val.unpack())
     if isinstance(val, dict):
         return {k: _deep_unpack(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple)):
+    if isinstance(val, list | tuple):
         unpacked = [_deep_unpack(item) for item in val]
         return tuple(unpacked) if isinstance(val, tuple) else unpacked
     return val

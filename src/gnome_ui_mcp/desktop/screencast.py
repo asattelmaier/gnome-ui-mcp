@@ -37,10 +37,6 @@ def screen_record_start(
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     file_template = str(CACHE_DIR / f"recording-{int(time.time() * 1000)}")
-    options: dict[str, GLib.Variant] = {
-        "framerate": GLib.Variant("u", framerate),
-        "draw-cursor": GLib.Variant("b", draw_cursor),
-    }
 
     try:
         bus = _get_bus()
