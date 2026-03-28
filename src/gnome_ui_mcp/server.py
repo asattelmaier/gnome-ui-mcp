@@ -125,11 +125,16 @@ def resolve_click_target(element_id: str) -> CallToolResult:
         "observable effect verification."
     )
 )
-def click_element(element_id: str, action_name: str | None = None) -> CallToolResult:
+def click_element(
+    element_id: str,
+    action_name: str | None = None,
+    click_count: Literal[1, 2, 3] = 1,
+) -> CallToolResult:
     return _run_tool(
         lambda: backend.click_element(
             element_id=element_id,
             action_name=action_name,
+            click_count=click_count,
         )
     )
 
@@ -192,8 +197,9 @@ def click_at(
     x: int,
     y: int,
     button: Literal["left", "middle", "right"] = "left",
+    click_count: Literal[1, 2, 3] = 1,
 ) -> CallToolResult:
-    return _run_tool(lambda: backend.click_at(x=x, y=y, button=button))
+    return _run_tool(lambda: backend.click_at(x=x, y=y, button=button, click_count=click_count))
 
 
 @mcp.tool(

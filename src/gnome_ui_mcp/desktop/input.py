@@ -97,7 +97,7 @@ class _MutterRemoteDesktopInput:
             ),
         }
 
-    def click_at(self, x: int, y: int, *, button: str = "left") -> JsonDict:
+    def click_at(self, x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
         button_code = REMOTE_POINTER_BUTTONS.get(button.lower())
         if button_code is None:
             msg = "button must be left, middle, or right"
@@ -111,14 +111,21 @@ class _MutterRemoteDesktopInput:
             GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
         )
         time.sleep(0.02)
-        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
-        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, False)))
+        with self._lock:
+            for click_index in range(click_count):
+                if click_index > 0:
+                    time.sleep(0.05)
+                self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
+                self._call_session(
+                    "NotifyPointerButton", GLib.Variant("(ib)", (button_code, False))
+                )
 
         return {
             "success": True,
             "x": x,
             "y": y,
             "button": button.lower(),
+            "click_count": click_count,
             "backend": "mutter-remote-desktop",
             "stream_path": stream_path,
         }
@@ -455,25 +462,52 @@ def _text_unit_to_keyval(unit: str) -> int:
     return int(keyval)
 
 
-def _perform_mouse_click_atspi(x: int, y: int, *, button: str = "left") -> JsonDict:
-    button_map = {"left": "b1c", "middle": "b2c", "right": "b3c"}
-    event_name = button_map.get(button.lower())
-    if event_name is None:
+ATSPI_CLICK_EVENTS = {
+    "left": {1: "b1c", 2: "b1d"},
+    "middle": {1: "b2c", 2: "b2d"},
+    "right": {1: "b3c", 2: "b3d"},
+}
+
+
+def _perform_mouse_click_atspi(
+    x: int, y: int, *, button: str = "left", click_count: int = 1
+) -> JsonDict:
+    btn = button.lower()
+    click_events = ATSPI_CLICK_EVENTS.get(btn)
+    if click_events is None:
         msg = "button must be left, middle, or right"
         raise ValueError(msg)
 
     Atspi.generate_mouse_event(x, y, "abs")
     time.sleep(0.05)
-    Atspi.generate_mouse_event(x, y, event_name)
 
-    return {"success": True, "x": x, "y": y, "button": button.lower(), "backend": "atspi"}
+    if click_count <= 2:
+        event_name = click_events.get(click_count, click_events[1])
+        Atspi.generate_mouse_event(x, y, event_name)
+    else:
+        # Triple-click: double + single (no native triple in AT-SPI)
+        Atspi.generate_mouse_event(x, y, click_events[2])
+        time.sleep(0.05)
+        Atspi.generate_mouse_event(x, y, click_events[1])
+
+    return {
+        "success": True,
+        "x": x,
+        "y": y,
+        "button": btn,
+        "click_count": click_count,
+        "backend": "atspi",
+    }
 
 
-def perform_mouse_click(x: int, y: int, *, button: str = "left") -> JsonDict:
+def perform_mouse_click(x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
+    if not (1 <= click_count <= 3):
+        msg = f"click_count must be 1, 2, or 3 (got {click_count})"
+        raise ValueError(msg)
     try:
-        return _REMOTE_INPUT.click_at(x, y, button=button)
+        return _REMOTE_INPUT.click_at(x, y, button=button, click_count=click_count)
     except Exception as exc:
-        result = _perform_mouse_click_atspi(x, y, button=button)
+        result = _perform_mouse_click_atspi(x, y, button=button, click_count=click_count)
         result["fallback_error"] = str(exc)
         return result
 

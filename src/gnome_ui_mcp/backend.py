@@ -73,8 +73,12 @@ def resolve_click_target(element_id: str) -> JsonDict:
     return interaction.resolve_click_target(element_id=element_id)
 
 
-def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
-    return interaction.click_element(element_id=element_id, action_name=action_name)
+def click_element(
+    element_id: str, action_name: str | None = None, click_count: int = 1
+) -> JsonDict:
+    return interaction.click_element(
+        element_id=element_id, action_name=action_name, click_count=click_count
+    )
 
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
@@ -107,8 +111,8 @@ def find_and_activate(
     )
 
 
-def click_at(x: int, y: int, button: str = "left") -> JsonDict:
-    return interaction.click_at(x=x, y=y, button=button)
+def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> JsonDict:
+    return interaction.click_at(x=x, y=y, button=button, click_count=click_count)
 
 
 def scroll(
