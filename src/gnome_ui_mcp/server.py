@@ -477,3 +477,36 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(
+    description="Extract text from the screen or a region using OCR. Use for apps with poor accessibility."
+)
+def ocr_screen(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> CallToolResult:
+    return _run_tool(lambda: backend.ocr_screen(x=x, y=y, width=width, height=height))
+
+
+@mcp.tool(description="Find text on screen via OCR and return its coordinates.")
+def find_text_ocr(
+    target: str,
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+    )
+
+
+@mcp.tool(description="Find text on screen via OCR and click it.")
+def click_text_ocr(
+    target: str,
+    button: Literal["left", "middle", "right"] = "left",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.click_text_ocr(target=target, button=button))

@@ -3,6 +3,9 @@ from __future__ import annotations
 import time
 
 from .desktop import accessibility, input, interaction
+import shutil
+
+from .desktop import accessibility, input, interaction, ocr
 
 JsonDict = dict[str, object]
 
@@ -318,3 +321,25 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+def ocr_screen(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.ocr_screen(x=x, y=y, width=width, height=height)
+
+
+def find_text_ocr(
+    target: str,
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+
+
+def click_text_ocr(target: str, button: str = "left") -> JsonDict:
+    return ocr.click_text_ocr(target=target, button=button)
