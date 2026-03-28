@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gnome-ui-mcp"
-version = "0.1.3"
+version = "0.2.0"
 description = "Small MCP server for GNOME Wayland desktop automation via AT-SPI and Mutter."
 readme = "README.md"
 license = { text = "MIT" }
