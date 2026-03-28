@@ -850,13 +850,645 @@ def _build_ollama_payload(prompt, images_b64, model): ...
 
 ---
 
-## Items NOT planned (N9-N15)
+---
+---
 
-These are lower priority. Plans will be written when higher-priority items are complete:
-- **N9: Conditional action chains** — design TBD
-- **N10: File dialog helper** — needs GTK file chooser AT-SPI tree research
-- **N11: GNOME Extensions control** — `org.gnome.Shell.Extensions` D-Bus, straightforward
-- **N12: System tray interaction** — SNI protocol research needed
-- **N13: Element highlight/annotate** — would need overlay window or screenshot annotation
-- **N14: IME support** — IBus D-Bus won't work for injection (verified), alternative TBD
-- **N15: Undo verification** — simple wrapper around Ctrl+Z + effect verification
+# Phase 7: Deep AT-SPI + Agent Reliability (18 items)
+
+> All APIs verified against Atspi 2.0 on GNOME 46 / Ubuntu 24.04.
+
+---
+
+## P0-1: get_element_properties (Value, Selection, Relations, Attributes)
+
+**Verified APIs:**
+- `accessible.get_value_iface()` → `get_current_value()`, `get_maximum_value()`, `get_minimum_value()`, `get_minimum_increment()`, `get_text()`
+- `accessible.get_selection_iface()` → `get_n_selected_children()`, `get_selected_child(i)`, `is_child_selected(i)`, `select_child(i)`, `deselect_child(i)`, `select_all()`, `clear_selection()`
+- `accessible.get_relation_set()` → list of `Atspi.Relation` with `.get_relation_type()` → `Atspi.RelationType` (LABEL_FOR, LABELLED_BY, CONTROLLER_FOR, CONTROLLED_BY, MEMBER_OF, TOOLTIP_FOR, etc.), `.get_n_targets()`, `.get_target(i)`
+- `accessible.get_attributes()` → `dict[str, str]` (keys: toolkit, class, window-type, etc.)
+- `accessible.get_image_iface()` → `get_image_description()`, `get_image_size()` → `Atspi.Point` (x=width, y=height)
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get detailed properties of an element by ID (value, selection, relations, attributes).")
+def get_element_properties(
+    element_id: str,
+    include_value: bool = True,
+    include_selection: bool = True,
+    include_relations: bool = True,
+    include_attributes: bool = True,
+    include_image: bool = False,
+) -> CallToolResult: ...
+```
+
+**Implementation (accessibility.py):**
+- Resolve element via `_resolve_element(element_id)`
+- Start with `_element_summary()` for base info
+- If `include_value`: try `get_value_iface()`, if not None: `{current, min, max, step, text}`
+- If `include_selection`: try `get_selection_iface()`, if not None: `{n_selected, selected: [{index, name, role}]}`
+- If `include_relations`: `get_relation_set()` → `[{type: "labelled-by", targets: [{id, name, role}]}]`
+- If `include_attributes`: `get_attributes()` → dict
+- If `include_image`: try `get_image_iface()`, if not None: `{description, width, height}`
+
+**TDD tests (tests/test_element_properties.py):**
+1. `test_returns_base_info` — id, name, role, states present
+2. `test_value_interface_slider` — mock value iface returns current/min/max/step
+3. `test_value_interface_absent` — element without value iface returns value=None
+4. `test_selection_interface_listbox` — mock selection returns selected children
+5. `test_selection_interface_absent` — no selection iface returns selection=None
+6. `test_relations_parsed` — mock relation set with LABELLED_BY returns targets
+7. `test_attributes_returned` — mock attributes returns dict
+8. `test_image_interface` — mock image returns description + size
+9. `test_invalid_element_id_returns_error` — bad id handled
+
+**Dependencies:** None — all APIs exist on Atspi.Accessible.
+
+---
+
+## P0-2: get_focused_element
+
+**Verified:** `current_focus_metadata()` already exists at `accessibility.py:371`. It walks the AT-SPI tree looking for `focused` state. Takes ~6.2ms.
+
+**Tool interface:**
+```python
+@mcp.tool(description="Return the currently focused element with its properties.")
+def get_focused_element() -> CallToolResult: ...
+```
+
+**Implementation:** Expose `current_focus_metadata()` via backend/server. Already returns `{id, name, role, states, bounds, text, application, editable}`.
+
+**TDD tests (tests/test_focused_element.py):**
+1. `test_returns_focused_element` — mock tree with one focused element returns it
+2. `test_no_focus_returns_none` — no focused element returns null/none
+3. `test_includes_editable_flag` — editable=True for text entries
+4. `test_includes_text_content` — text field returns current text
+
+**Dependencies:** None — function already exists internally.
+
+---
+
+## P0-3: wait_and_act
+
+**Verified:** `wait_for_element` polls `find_elements` in a loop. `activate_element` does multi-strategy activation. AT-SPI `SHOWING` state means element is rendered — safe to activate immediately after finding. In-process find-to-activate overhead: <2ms.
+
+**Tool interface:**
+```python
+@mcp.tool(description="Wait for an element to appear, then activate it. Atomic wait+act in one call.")
+def wait_and_act(
+    wait_query: str,
+    wait_role: str | None = None,
+    wait_app_name: str | None = None,
+    then_action: Literal["click", "activate", "focus", "set_text"] = "activate",
+    then_query: str | None = None,
+    then_role: str | None = None,
+    then_text: str | None = None,
+    timeout_ms: int = 5000,
+    poll_interval_ms: int = 250,
+) -> CallToolResult: ...
+```
+
+**Implementation (interaction.py):**
+1. Poll `find_elements(query=wait_query, role=wait_role, ...)` until match or timeout
+2. If `then_query` provided: find child/sibling matching `then_query` within result
+3. Execute action: `"activate"` → `activate_element(id)`, `"click"` → `click_element(id)`, `"focus"` → `focus_element(id)`, `"set_text"` → `set_element_text(id, then_text)`
+4. Return combined result with `waited_ms`, wait match, and action result
+
+**TDD tests (tests/test_wait_and_act.py):**
+1. `test_finds_and_activates` — element found, activate called
+2. `test_timeout_returns_error` — element never appears, timeout
+3. `test_then_query_finds_within` — waits for dialog, then clicks button within
+4. `test_set_text_action` — waits for entry, sets text
+5. `test_waited_ms_reported` — result includes how long it waited
+6. `test_poll_interval_respected` — verify sleep calls match interval
+
+**Dependencies:** Uses existing `find_elements` + `activate_element`.
+
+---
+
+## P1-1: wait_for_app / wait_for_window
+
+**Verified:** `_iter_applications()` scan of 23 apps takes 14.5ms. Apps appear in AT-SPI tree 100-500ms after D-Bus activation. Polling at 250ms is sufficient.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Wait for an application to appear in the AT-SPI tree.")
+def wait_for_app(
+    app_name: str,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+    require_window: bool = True,
+) -> CallToolResult: ...
+
+@mcp.tool(description="Wait for a window to appear.")
+def wait_for_window(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+) -> CallToolResult: ...
+```
+
+**Implementation (accessibility.py):**
+- `wait_for_app`: Poll `_select_applications(app_name)` until non-empty. If `require_window`, also check `list_windows(app_name)` returns at least one SHOWING window.
+- `wait_for_window`: Poll `find_elements(query=query, role=role or "frame", showing_only=True)` filtered to window roles.
+
+**TDD tests (tests/test_wait_for_app.py):**
+1. `test_finds_app_immediately` — app already present
+2. `test_waits_for_app_to_appear` — app appears after 2 polls
+3. `test_timeout_returns_error` — app never appears
+4. `test_require_window_waits_for_showing` — app present but no window yet
+5. `test_wait_for_window_by_title` — finds window by title match
+6. `test_waited_ms_reported` — result includes wait time
+
+**Dependencies:** Uses existing `_select_applications`, `list_windows`.
+
+---
+
+## P1-2: get_element_text (full Text interface)
+
+**Verified APIs (beyond what's used):**
+- `get_caret_offset()` → int
+- `set_caret_offset(offset)` → bool
+- `get_n_selections()` → int, `get_selection(i)` → `Atspi.Range` (.start_offset, .end_offset)
+- `get_text_attributes(offset)` → (dict, start, end) — font, size, weight, style, etc.
+- `get_string_at_offset(offset, granularity)` → `Atspi.TextRange` (.content, .start_offset, .end_offset)
+- `Atspi.TextGranularity`: CHAR=0, WORD=1, SENTENCE=2, LINE=3, PARAGRAPH=4
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get text content, caret position, and selection from an element.")
+def get_element_text(
+    element_id: str,
+    start: int = 0,
+    end: int = -1,
+    include_attributes: bool = False,
+) -> CallToolResult: ...
+# Returns: {text, length, caret_offset, selections: [{start, end, text}], editable, attributes}
+```
+
+**Implementation (accessibility.py):**
+- Resolve element, get text_iface
+- `text_iface.get_character_count()` for length
+- `text_iface.get_text(start, end if end >= 0 else length)` for content
+- `text_iface.get_caret_offset()` for caret
+- Loop `get_n_selections()` → `get_selection(i)` for selections
+- If `include_attributes`: `get_text_attributes(0)` for formatting
+
+**TDD tests (tests/test_element_text.py):**
+1. `test_returns_text_content` — text field returns current text
+2. `test_returns_caret_offset` — caret position reported
+3. `test_returns_selections` — selected range reported
+4. `test_partial_text_range` — start/end params work
+5. `test_no_text_interface_returns_error` — non-text element handled
+6. `test_editable_flag` — editable elements flagged
+7. `test_attributes_returned` — font/size attributes when requested
+
+**Dependencies:** None — extends existing text_iface usage.
+
+---
+
+## P1-3: get_table_info / get_table_cell
+
+**Verified APIs:**
+- `accessible.get_table_iface()` → `Atspi.Table`
+- `get_n_rows()`, `get_n_columns()`, `get_accessible_at(row, col)`, `get_column_header(col)`, `get_row_header(row)`, `get_caption()`, `get_column_description(col)`, `get_row_description(row)`
+- `get_n_selected_rows()`, `get_selected_rows()`, `is_row_selected(row)`, `is_selected(row, col)`
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Get table dimensions, headers, and selection from a table element.")
+def get_table_info(element_id: str) -> CallToolResult: ...
+# Returns: {rows, columns, headers: [...], selected_rows: [...], caption}
+
+@mcp.tool(description="Get the accessible element at a specific table cell.")
+def get_table_cell(element_id: str, row: int, column: int) -> CallToolResult: ...
+# Returns: {value: "text", element_id, name, role, states}
+```
+
+**Implementation (accessibility.py):**
+- `get_table_info`: Get table_iface, call n_rows/n_columns, iterate column_headers, get selected_rows, caption
+- `get_table_cell`: `table_iface.get_accessible_at(row, col)` → `_element_summary()`
+
+**TDD tests (tests/test_table.py):**
+1. `test_returns_dimensions` — rows and columns correct
+2. `test_returns_column_headers` — header names extracted
+3. `test_returns_selected_rows` — selected row indices
+4. `test_get_cell_returns_element` — cell has name, role, states
+5. `test_no_table_interface_returns_error` — non-table element handled
+6. `test_out_of_bounds_cell_returns_error` — invalid row/col
+
+**Dependencies:** None — uses Atspi.Table.
+
+---
+
+## P1-4: assert_element / assert_text
+
+**Verified:** All `Atspi.StateType` values available (42 states). No new APIs needed — wraps existing find_elements + state checking.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Assert that an element exists with expected states. Returns pass/fail.")
+def assert_element(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    expected_states: list[str] | None = None,
+    unexpected_states: list[str] | None = None,
+    timeout_ms: int = 3000,
+) -> CallToolResult: ...
+# Returns: {passed: bool, checks: [{check, passed, actual}], element}
+
+@mcp.tool(description="Assert that an element's text matches expected value.")
+def assert_text(
+    element_id: str,
+    expected: str,
+    match: Literal["exact", "contains", "startswith", "regex"] = "contains",
+) -> CallToolResult: ...
+# Returns: {passed: bool, actual, expected, match}
+```
+
+**Implementation (new file: desktop/assertions.py):**
+- `assert_element`: Call `find_elements` with timeout. If found, check states against expected/unexpected. Return structured checks list.
+- `assert_text`: Resolve element, get text, compare with match mode (exact, contains, startswith, regex via `re.search`).
+
+**TDD tests (tests/test_assertions.py):**
+1. `test_element_found_and_states_match` — passed=True
+2. `test_element_found_but_wrong_state` — passed=False, check shows mismatch
+3. `test_element_not_found_fails` — passed=False
+4. `test_unexpected_state_present_fails` — disabled check fails
+5. `test_text_exact_match` — exact comparison
+6. `test_text_contains_match` — substring match
+7. `test_text_regex_match` — regex pattern
+8. `test_text_mismatch_shows_actual` — actual text in result
+
+**Dependencies:** None.
+
+---
+
+## P2-1: scroll_to_element
+
+**Verified:** `Atspi.Component.scroll_to(ScrollType)` exists but is unreliable — Chrome works, GTK4 throws errors, GTK3 returns False. `ScrollType` enum: TOP_LEFT, BOTTOM_RIGHT, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE, ANYWHERE.
+
+**Fallback:** Find nearest scrollable ancestor, send scroll wheel events until element has SHOWING state.
+
+**Tool interface:**
+```python
+@mcp.tool(description="Scroll an element into view if it's off-screen.")
+def scroll_to_element(
+    element_id: str,
+    max_scrolls: int = 20,
+    scroll_clicks: int = 3,
+) -> CallToolResult: ...
+# Returns: {success, scrolls_performed, now_showing, element_bounds}
+```
+
+**Implementation (interaction.py):**
+1. Check if element has SHOWING state. If yes, return immediately.
+2. Try `component.scroll_to(Atspi.ScrollType.ANYWHERE)`. If returns True, check SHOWING again.
+3. Fallback: Walk parents to find scroll pane role. Get its bounds center. Send scroll events via `input.perform_scroll()` at that position. Re-check SHOWING after each scroll batch. Repeat up to `max_scrolls`.
+
+**TDD tests (tests/test_scroll_to.py):**
+1. `test_already_showing_returns_immediately` — no scrolling needed
+2. `test_atspi_scroll_to_works` — scroll_to returns True, element now showing
+3. `test_fallback_finds_scroll_pane` — parent walking finds scrollable
+4. `test_fallback_scrolls_until_showing` — scroll events sent, element becomes showing
+5. `test_max_scrolls_exceeded_returns_failure` — gives up after limit
+6. `test_no_scrollable_parent_returns_error` — element has no scroll pane ancestor
+
+**Dependencies:** Uses existing `perform_scroll`.
+
+---
+
+## P2-2: get_element_path
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get the ancestry chain from desktop root to an element.")
+def get_element_path(element_id: str) -> CallToolResult: ...
+# Returns: {path: [{id, name, role, application}]}
+```
+
+**Implementation (accessibility.py):**
+- Parse element_id path (e.g., "0/3/1/2")
+- For each prefix length (1, 2, 3, ..., full): resolve that sub-path, get name+role
+- Return ordered list from root to element
+
+**TDD tests (tests/test_element_path.py):**
+1. `test_returns_ancestry_chain` — path from root to element
+2. `test_includes_application_name` — app name at root level
+3. `test_single_level_element` — direct child of desktop
+4. `test_invalid_element_id_returns_error` — bad path handled
+
+**Dependencies:** Uses existing `_resolve_element`.
+
+---
+
+## P2-3: subscribe_events / poll_events
+
+**Verified:** `Atspi.EventListener.new(callback)` + `.register("event:type")` works. Requires GLib main loop iteration. Event types: `object:state-changed:*`, `window:create/destroy/activate`, `object:text-changed:*`, `object:children-changed:*`, etc.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Subscribe to AT-SPI events. Returns subscription ID.")
+def subscribe_events(
+    event_types: list[str],
+    app_name: str | None = None,
+) -> CallToolResult: ...
+
+@mcp.tool(description="Poll for captured AT-SPI events.")
+def poll_events(
+    subscription_id: str,
+    timeout_ms: int = 5000,
+    max_events: int = 100,
+) -> CallToolResult: ...
+
+@mcp.tool(description="Unsubscribe from AT-SPI events.")
+def unsubscribe_events(subscription_id: str) -> CallToolResult: ...
+```
+
+**Implementation (new file: desktop/events.py):**
+- EventSubscription class with deque buffer
+- `subscribe`: Create `Atspi.EventListener.new(callback)`, register for each event type
+- Callback stores events in deque with timestamp, type, source element summary
+- `poll`: Run `GLib.MainContext.default().iteration(may_block=False)` to pump events, return buffer contents
+- `unsubscribe`: `listener.deregister(type)` for each type
+
+**TDD tests (tests/test_events.py):**
+1. `test_subscribe_registers_listener` — listener.register called for each type
+2. `test_callback_stores_event` — simulated event stored in buffer
+3. `test_poll_returns_buffered_events` — events returned in order
+4. `test_unsubscribe_deregisters` — listener.deregister called
+5. `test_max_events_limits_result` — only N events returned
+6. `test_event_has_required_fields` — type, source_id, timestamp
+
+**Dependencies:** Requires GLib main loop iteration in poll.
+
+---
+
+## P2-4: accessibility_tree filter parameters
+
+**Verified:** `Atspi.Collection.get_matches(rule, ...)` exists but is complex. Simpler approach: add early-termination filters to existing `_walk_tree` generator.
+
+**Tool interface change (existing tool):**
+```python
+def accessibility_tree(
+    app_name=None, max_depth=4,
+    include_actions=False, include_text=False,
+    filter_roles: list[str] | None = None,       # NEW
+    filter_states: list[str] | None = None,       # NEW
+    showing_only: bool = False,                    # NEW
+) -> CallToolResult: ...
+```
+
+**Implementation (accessibility.py):**
+- In `_serialize_tree`, skip children that don't match filters
+- `filter_roles`: only include nodes where role_name is in the list
+- `filter_states`: only include nodes that have ALL specified states
+- `showing_only`: skip nodes without "showing" state (skip entire subtree)
+
+**TDD tests (tests/test_tree_filters.py):**
+1. `test_filter_roles_only_returns_matching` — only push buttons returned
+2. `test_filter_states_only_showing` — hidden elements excluded
+3. `test_combined_filters` — role + state filter together
+4. `test_no_filters_returns_all` — default behavior unchanged
+5. `test_subtree_pruned_when_not_showing` — entire subtree skipped
+
+**Dependencies:** Modifies existing function, no new APIs.
+
+---
+
+## P2-5: get_elements_by_ids
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get properties of multiple elements by ID in one call.")
+def get_elements_by_ids(
+    element_ids: list[str],
+    include_text: bool = True,
+    include_value: bool = False,
+) -> CallToolResult: ...
+# Returns: {elements: [{id, name, role, states, text, exists}], missing: ["id"]}
+```
+
+**Implementation (accessibility.py):**
+- For each id: try `_resolve_element`, build `_element_summary`. If fails, add to missing list.
+
+**TDD tests (tests/test_batch_query.py):**
+1. `test_returns_all_requested` — 3 ids, 3 results
+2. `test_missing_elements_tracked` — invalid ids in missing list
+3. `test_includes_text_when_requested` — text content included
+4. `test_empty_ids_returns_empty` — empty list handled
+
+**Dependencies:** None.
+
+---
+
+## P3-1: snapshot_state / compare_state
+
+**Verified performance:** Full snapshot (apps + windows + focus + popups + clipboard) takes ~186ms.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Capture a snapshot of the current desktop state.")
+def snapshot_state() -> CallToolResult: ...
+# Returns: {snapshot_id, timestamp, apps, windows, focused, popups, clipboard_hash}
+
+@mcp.tool(description="Compare two snapshots and return changes.")
+def compare_state(before_id: str, after_id: str) -> CallToolResult: ...
+# Returns: {changes: [{type, details}]}
+```
+
+**Implementation (new file: desktop/snapshots.py):**
+- `snapshot_state`: Call `list_applications`, `list_windows`, `current_focus_metadata`, `visible_shell_popups`. Hash clipboard via `wl-paste | sha256`. Store in dict by snapshot_id.
+- `compare_state`: Diff two snapshots. Detect: apps added/removed, windows added/removed, focus changed, popups changed, clipboard changed.
+
+**TDD tests (tests/test_snapshots.py):**
+1. `test_snapshot_returns_id` — snapshot_id present
+2. `test_snapshot_includes_all_fields` — apps, windows, focused, popups
+3. `test_compare_identical_no_changes` — no changes detected
+4. `test_compare_detects_new_window` — window_appeared change
+5. `test_compare_detects_focus_change` — focus_changed change
+6. `test_compare_invalid_id_returns_error` — bad snapshot id handled
+
+**Dependencies:** Uses existing list_applications, list_windows, etc.
+
+---
+
+## P3-2: set_boundaries
+
+**Verified:** `_application_name_for_element_id()` resolves app name from element_id. Pure application logic.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Restrict automation to a specific application.")
+def set_boundaries(
+    app_name: str | None = None,
+    allow_global_keys: list[str] | None = None,
+) -> CallToolResult: ...
+
+@mcp.tool(description="Remove automation boundaries.")
+def clear_boundaries() -> CallToolResult: ...
+```
+
+**Implementation (new file: desktop/boundaries.py):**
+- Module-level `_boundaries` dict: `{app_name, allow_global_keys}`
+- Before any click/activate/type operation, check boundary. If target app doesn't match, return error.
+- `allow_global_keys`: list of key combos that bypass boundary check (e.g., "ctrl+c", "Print")
+- Integration point: add `_check_boundary(element_id)` call at start of `click_element`, `activate_element`, `set_element_text` in interaction.py
+
+**TDD tests (tests/test_boundaries.py):**
+1. `test_no_boundary_allows_all` — default allows everything
+2. `test_boundary_blocks_wrong_app` — clicking in wrong app returns error
+3. `test_boundary_allows_correct_app` — clicking in allowed app works
+4. `test_global_keys_bypass` — allowed keys work regardless of boundary
+5. `test_clear_removes_boundary` — clear restores default
+
+**Dependencies:** None.
+
+---
+
+## P3-3: get_action_history
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get recent automation actions with undo hints.")
+def get_action_history(last_n: int = 10) -> CallToolResult: ...
+# Returns: {actions: [{tool, params, timestamp, element_id, app_name, undo_hint}]}
+```
+
+**Implementation (new file: desktop/history.py):**
+- Module-level `deque(maxlen=100)` of action records
+- `record_action(tool, params, result)`: called after each tool execution
+- Undo hint mapping: `type_text`→`"ctrl+z"`, `click_element` on menu→`"Escape"`, `press_key("Return")`→`"ctrl+z"`, `set_element_text`→`"ctrl+z"`, `activate_element`→`"Escape"`
+- Integration: add `history.record_action()` call in `_run_tool` wrapper in server.py
+
+**TDD tests (tests/test_history.py):**
+1. `test_records_action` — action stored in history
+2. `test_last_n_limits_results` — only last N returned
+3. `test_undo_hint_for_type` — type_text has ctrl+z hint
+4. `test_undo_hint_for_click` — click has Escape hint
+5. `test_empty_history` — no actions returns empty list
+
+**Dependencies:** None.
+
+---
+
+## P3-4: highlight_element (annotated screenshot)
+
+**Verified:** Shell.Eval, ShowOSD, ShowMonitorLabels all blocked on GNOME 46. Alternative: annotated screenshot via Pillow ImageDraw.
+
+**Tool interface:**
+```python
+@mcp.tool(description="Take a screenshot with a colored rectangle highlighting an element.")
+def highlight_element(
+    element_id: str,
+    color: str = "red",
+    label: str | None = None,
+) -> CallToolResult: ...
+# Returns: {path: "/path/to/annotated.png", element_bounds: {x,y,w,h}}
+```
+
+**Implementation (accessibility.py or visual.py):**
+- Get element bounds via `_element_bounds()`
+- Take screenshot via `input.screenshot()`
+- Load with PIL, draw rectangle with `ImageDraw.Draw(img).rectangle()` in specified color
+- If label: draw text with `ImageDraw.Draw(img).text()`
+- Save annotated image, return path
+
+**TDD tests (tests/test_highlight.py):**
+1. `test_returns_annotated_image_path` — path returned
+2. `test_draws_rectangle_at_bounds` — ImageDraw.rectangle called with correct coords
+3. `test_label_drawn` — text drawn when label provided
+4. `test_invalid_element_returns_error` — bad element_id handled
+
+**Dependencies:** Pillow (already installed).
+
+---
+
+## P3-5: list_key_names / get_keyboard_layout
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Get the current keyboard layout.")
+def get_keyboard_layout() -> CallToolResult: ...
+# Returns: {layout, variant, valid_modifiers: [...]}
+
+@mcp.tool(description="List valid key names by category.")
+def list_key_names(
+    category: Literal["navigation", "function", "modifier", "editing", "all"] = "all",
+) -> CallToolResult: ...
+```
+
+**Implementation (input.py):**
+- `get_keyboard_layout`: Read from GSettings `org.gnome.desktop.input-sources` → `sources` key
+- `list_key_names`: Static dict of key name categories from GDK key names
+
+**TDD tests (tests/test_key_names.py):**
+1. `test_layout_returns_string` — layout name present
+2. `test_navigation_keys_complete` — Return, Escape, Tab, etc.
+3. `test_modifier_keys_listed` — Control_L, Shift_L, Alt_L, Super_L
+4. `test_function_keys_listed` — F1-F12
+
+**Dependencies:** None.
+
+---
+
+## P3-6: get_monitor_for_point
+
+**Tool interface:**
+```python
+@mcp.tool(description="Get which monitor contains a screen coordinate.")
+def get_monitor_for_point(x: int, y: int) -> CallToolResult: ...
+# Returns: {monitor_index, connector, bounds: {x,y,w,h}, scale_factor}
+```
+
+**Implementation (display.py):**
+- Use GDK or Mutter.DisplayConfig to get monitor geometries
+- Find which monitor's bounds contain (x,y)
+
+**TDD tests (tests/test_monitor_point.py):**
+1. `test_point_in_primary_monitor` — returns primary monitor info
+2. `test_point_outside_all_monitors_returns_error` — out of bounds
+
+**Dependencies:** Uses existing display info infrastructure.
+
+---
+
+## Implementation Order (dependency-optimized)
+
+### Phase 7a: AT-SPI introspection (all modify accessibility.py)
+| # | Item | Tests | Why this order |
+|---|------|-------|---------------|
+| 1 | P0-2 get_focused_element | 4 | Free — expose existing internal |
+| 2 | P0-1 get_element_properties | 9 | Biggest AT-SPI expansion |
+| 3 | P1-2 get_element_text | 7 | Extends text interface usage |
+| 4 | P1-3 get_table_info/cell | 6 | New AT-SPI interface |
+| 5 | P2-2 get_element_path | 4 | Simple path parsing |
+| 6 | P2-5 get_elements_by_ids | 4 | Batch wrapper |
+| 7 | P2-4 accessibility_tree filters | 5 | Modifies existing function |
+
+### Phase 7b: Wait/action patterns (modify interaction.py)
+| # | Item | Tests | Why this order |
+|---|------|-------|---------------|
+| 8 | P1-1 wait_for_app/window | 6 | Independent new waits |
+| 9 | P0-3 wait_and_act | 6 | Combines wait + activate |
+| 10 | P2-1 scroll_to_element | 6 | Uses interaction patterns |
+
+### Phase 7c: New capability files (no conflicts)
+| # | Item | Tests | Why this order |
+|---|------|-------|---------------|
+| 11 | P1-4 assert_element/text | 8 | New assertions.py |
+| 12 | P2-3 subscribe_events | 6 | New events.py |
+| 13 | P3-1 snapshot/compare_state | 6 | New snapshots.py |
+| 14 | P3-2 set_boundaries | 5 | New boundaries.py |
+| 15 | P3-3 get_action_history | 5 | New history.py |
+
+### Phase 7d: Utilities (independent)
+| # | Item | Tests | Why this order |
+|---|------|-------|---------------|
+| 16 | P3-4 highlight_element | 4 | Pillow annotated screenshot |
+| 17 | P3-5 list_key_names/layout | 4 | Static data |
+| 18 | P3-6 get_monitor_for_point | 2 | Simple geometry |
+
+**Total: 18 items, ~95 tests**
