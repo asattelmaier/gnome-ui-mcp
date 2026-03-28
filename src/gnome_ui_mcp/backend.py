@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction, ocr, window_management
+from .desktop import accessibility, input, interaction, ocr, vlm, window_management
 
 JsonDict = dict[str, object]
 
@@ -342,3 +342,23 @@ def toggle_window_state(state: str) -> JsonDict:
 
 def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
     return ocr.type_into(label=label, text=text, submit=submit)
+
+
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+
+
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.compare_screenshots(
+        path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
+    )

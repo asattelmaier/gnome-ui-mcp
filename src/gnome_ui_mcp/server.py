@@ -536,3 +536,39 @@ def toggle_window_state(
 )
 def type_into(label: str, text: str, submit: bool = False) -> CallToolResult:
     return _run_tool(lambda: backend.type_into(label=label, text=text, submit=submit))
+
+
+@mcp.tool(
+    description=(
+        "Take a screenshot and send it to a Vision Language Model for analysis. "
+        "Providers: openrouter (default), anthropic, ollama."
+    )
+)
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+    )
+
+
+@mcp.tool(
+    description=(
+        "Compare two screenshot images using a Vision Language Model. "
+        "Describe differences between the screenshots."
+    )
+)
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.compare_screenshots(
+            path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
+        )
+    )
