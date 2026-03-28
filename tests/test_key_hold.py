@@ -37,7 +37,9 @@ class TestMutterKeyDown:
         remote = input_mod._MutterRemoteDesktopInput()
         remote._ensure_session = MagicMock(return_value=("stream", MagicMock()))
 
-        with patch("gnome_ui_mcp.desktop.input._key_name_to_keyval", side_effect=ValueError("Unknown key")):
+        with patch(
+            "gnome_ui_mcp.desktop.input._key_name_to_keyval", side_effect=ValueError("Unknown key")
+        ):
             try:
                 remote.key_down("NotARealKeyName_XYZ_999")
                 assert False, "Should have raised ValueError"
@@ -89,7 +91,12 @@ class TestModuleLevelKeyHold:
         with patch.object(
             input_mod._REMOTE_INPUT,
             "key_down",
-            return_value={"success": True, "key_name": "Shift_L", "keyval": 65505, "backend": "mutter-remote-desktop"},
+            return_value={
+                "success": True,
+                "key_name": "Shift_L",
+                "keyval": 65505,
+                "backend": "mutter-remote-desktop",
+            },
         ) as mock:
             result = input_mod.key_down("Shift_L")
 
@@ -100,7 +107,12 @@ class TestModuleLevelKeyHold:
         with patch.object(
             input_mod._REMOTE_INPUT,
             "key_up",
-            return_value={"success": True, "key_name": "Shift_L", "keyval": 65505, "backend": "mutter-remote-desktop"},
+            return_value={
+                "success": True,
+                "key_name": "Shift_L",
+                "keyval": 65505,
+                "backend": "mutter-remote-desktop",
+            },
         ) as mock:
             result = input_mod.key_up("Shift_L")
 
@@ -109,7 +121,9 @@ class TestModuleLevelKeyHold:
 
     def test_key_down_atspi_fallback(self) -> None:
         with (
-            patch.object(input_mod._REMOTE_INPUT, "key_down", side_effect=RuntimeError("no session")),
+            patch.object(
+                input_mod._REMOTE_INPUT, "key_down", side_effect=RuntimeError("no session")
+            ),
             patch("gnome_ui_mcp.desktop.input.Atspi") as mock_atspi,
             patch("gnome_ui_mcp.desktop.input._key_name_to_keyval", return_value=65505),
         ):
@@ -151,8 +165,7 @@ class TestCloseReleasesHeldKeys:
 
         # Should have called NotifyKeyboardKeysym with False for each held key
         release_calls = [
-            c for c in remote._call_session.call_args_list
-            if c.args[0] == "NotifyKeyboardKeysym"
+            c for c in remote._call_session.call_args_list if c.args[0] == "NotifyKeyboardKeysym"
         ]
         assert len(release_calls) == 2
         for call in release_calls:

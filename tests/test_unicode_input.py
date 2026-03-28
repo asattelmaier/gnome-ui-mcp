@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from gnome_ui_mcp.desktop import input as input_mod
 
@@ -18,8 +18,7 @@ class TestMutterTypeUnicode:
 
         # Should use NotifyKeyboardKeysym directly, not clipboard
         keysym_calls = [
-            c for c in remote._call_session.call_args_list
-            if c.args[0] == "NotifyKeyboardKeysym"
+            c for c in remote._call_session.call_args_list if c.args[0] == "NotifyKeyboardKeysym"
         ]
         assert len(keysym_calls) == 10  # 5 chars * 2 (press+release each)
         assert result["success"] is True
@@ -28,7 +27,9 @@ class TestMutterTypeUnicode:
     def test_cjk_uses_clipboard_approach(self) -> None:
         with (
             patch("subprocess.run") as mock_run,
-            patch.object(input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())),
+            patch.object(
+                input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())
+            ),
             patch.object(input_mod._REMOTE_INPUT, "_call_session"),
             patch("time.sleep"),
         ):
@@ -52,7 +53,9 @@ class TestMutterTypeUnicode:
     def test_emoji_uses_clipboard_approach(self) -> None:
         with (
             patch("subprocess.run") as mock_run,
-            patch.object(input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())),
+            patch.object(
+                input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())
+            ),
             patch.object(input_mod._REMOTE_INPUT, "_call_session"),
             patch("time.sleep"),
         ):
@@ -71,7 +74,9 @@ class TestMutterTypeUnicode:
     def test_clipboard_saved_and_restored(self) -> None:
         with (
             patch("subprocess.run") as mock_run,
-            patch.object(input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())),
+            patch.object(
+                input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())
+            ),
             patch.object(input_mod._REMOTE_INPUT, "_call_session"),
             patch("time.sleep"),
         ):
@@ -100,7 +105,9 @@ class TestMutterTypeUnicode:
         """Any non-keymap char triggers clipboard for the whole string."""
         with (
             patch("subprocess.run") as mock_run,
-            patch.object(input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())),
+            patch.object(
+                input_mod._REMOTE_INPUT, "_ensure_session", return_value=("stream", MagicMock())
+            ),
             patch.object(input_mod._REMOTE_INPUT, "_call_session"),
             patch("time.sleep"),
         ):
@@ -121,4 +128,7 @@ class TestMutterTypeUnicode:
             result = input_mod.type_unicode("测试")
 
         assert result["success"] is False
-        assert "wl-paste" in result.get("error", "").lower() or "not found" in result.get("error", "").lower()
+        assert (
+            "wl-paste" in result.get("error", "").lower()
+            or "not found" in result.get("error", "").lower()
+        )

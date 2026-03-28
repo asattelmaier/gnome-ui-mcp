@@ -110,7 +110,13 @@ class TestModuleLevelButtonHold:
         with patch.object(
             input_mod._REMOTE_INPUT,
             "button_down",
-            return_value={"success": True, "x": 10, "y": 20, "button": "left", "backend": "mutter-remote-desktop"},
+            return_value={
+                "success": True,
+                "x": 10,
+                "y": 20,
+                "button": "left",
+                "backend": "mutter-remote-desktop",
+            },
         ) as mock:
             result = input_mod.mouse_button_down(10, 20)
 
@@ -121,7 +127,13 @@ class TestModuleLevelButtonHold:
         with patch.object(
             input_mod._REMOTE_INPUT,
             "button_up",
-            return_value={"success": True, "x": 10, "y": 20, "button": "left", "backend": "mutter-remote-desktop"},
+            return_value={
+                "success": True,
+                "x": 10,
+                "y": 20,
+                "button": "left",
+                "backend": "mutter-remote-desktop",
+            },
         ) as mock:
             result = input_mod.mouse_button_up(10, 20)
 
@@ -130,7 +142,9 @@ class TestModuleLevelButtonHold:
 
     def test_button_down_atspi_fallback(self) -> None:
         with (
-            patch.object(input_mod._REMOTE_INPUT, "button_down", side_effect=RuntimeError("no session")),
+            patch.object(
+                input_mod._REMOTE_INPUT, "button_down", side_effect=RuntimeError("no session")
+            ),
             patch("gnome_ui_mcp.desktop.input.Atspi") as mock_atspi,
         ):
             mock_atspi.generate_mouse_event.return_value = True
@@ -144,7 +158,9 @@ class TestModuleLevelButtonHold:
 
     def test_button_up_atspi_fallback(self) -> None:
         with (
-            patch.object(input_mod._REMOTE_INPUT, "button_up", side_effect=RuntimeError("no session")),
+            patch.object(
+                input_mod._REMOTE_INPUT, "button_up", side_effect=RuntimeError("no session")
+            ),
             patch("gnome_ui_mcp.desktop.input.Atspi") as mock_atspi,
         ):
             mock_atspi.generate_mouse_event.return_value = True
@@ -171,8 +187,7 @@ class TestCloseReleasesHeldButtons:
         remote.close()
 
         release_calls = [
-            c for c in remote._call_session.call_args_list
-            if c.args[0] == "NotifyPointerButton"
+            c for c in remote._call_session.call_args_list if c.args[0] == "NotifyPointerButton"
         ]
         assert len(release_calls) == 2
         for call in release_calls:

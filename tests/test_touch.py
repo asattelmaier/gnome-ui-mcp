@@ -18,10 +18,7 @@ def _make_remote() -> input_mod._MutterRemoteDesktopInput:
 
 def _session_calls(remote: input_mod._MutterRemoteDesktopInput) -> list[tuple[str, tuple]]:
     """Extract (method_name, unpacked_args) from _call_session calls."""
-    return [
-        (c.args[0], c.args[1].unpack())
-        for c in remote._call_session.call_args_list
-    ]
+    return [(c.args[0], c.args[1].unpack()) for c in remote._call_session.call_args_list]
 
 
 class TestTouchTap:
@@ -135,7 +132,9 @@ class TestTouchPinch:
     def test_returns_success(self) -> None:
         remote = _make_remote()
         with patch("time.sleep"):
-            result = remote.touch_pinch(500, 500, start_distance=50, end_distance=150, duration_ms=200)
+            result = remote.touch_pinch(
+                500, 500, start_distance=50, end_distance=150, duration_ms=200
+            )
         assert result["success"] is True
 
 
