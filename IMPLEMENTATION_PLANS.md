@@ -633,6 +633,223 @@ def visual_diff(
 
 ---
 
+## F1: Close Window
+
+**Verified API:**
+- AT-SPI window frames do NOT reliably expose a "close" action. The close button is a child widget, not an action on the frame.
+- `Alt+F4` is the default GNOME keybinding for `close` (from `org.gnome.desktop.wm.keybindings`).
+- `org.gnome.Shell.Introspect` is read-only — NO mutation methods.
+- `wmctrl` does NOT work on Wayland.
+- Optional: `window-calls` extension provides `Close(winid)` via `org.gnome.Shell.Extensions.Windows`.
+
+**Tool interface:**
+```python
+@mcp.tool(description="Close the focused window.")
+def close_window() -> CallToolResult: ...
+```
+
+**Implementation (desktop/window_management.py):**
+- Primary: `key_combo("alt+F4")` via existing infrastructure
+- Return effect verification result from `_verified_result_after_settle`
+
+**TDD tests (tests/test_window_mgmt.py):**
+1. `test_close_sends_alt_f4` — verify key_combo called with "alt+F4"
+2. `test_close_returns_success` — result has success=True
+3. `test_close_includes_verification` — effect verification present
+
+**Dependencies:** None — uses existing key_combo.
+
+---
+
+## F2: Move/Resize Window
+
+**Verified API:**
+- `Atspi.Component.set_position()` / `set_size()` — do NOT work on Wayland (compositor controls geometry).
+- Native D-Bus: NO mutation methods on `org.gnome.Shell.Introspect`.
+- `org.gnome.Shell.Eval` — BLOCKED on GNOME 46.
+- Keyboard shortcuts:
+  - `Alt+F7` — begin keyboard move mode (arrow keys to move, Enter to confirm)
+  - `Alt+F8` — begin keyboard resize mode (arrow keys to resize, Enter to confirm)
+  - `Super+Up` — maximize
+  - `Super+Down` — unmaximize/restore
+  - `Super+Left/Right` — tile left/right half
+- Optional: `window-calls` extension provides `Move(winid, x, y)`, `Resize(winid, w, h)`, `MoveResize(winid, x, y, w, h)`.
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Move the focused window by pixel offset using keyboard move mode.")
+def move_window(dx: int, dy: int) -> CallToolResult: ...
+
+@mcp.tool(description="Resize the focused window by pixel offset using keyboard resize mode.")
+def resize_window(dw: int, dh: int) -> CallToolResult: ...
+
+@mcp.tool(description="Tile or snap the focused window to a position.")
+def snap_window(position: Literal["maximize", "restore", "left", "right"]) -> CallToolResult: ...
+```
+
+**Implementation (desktop/window_management.py):**
+- `move_window(dx, dy)`: Send `Alt+F7`, then arrow keys proportional to dx/dy, then `Return`
+  - Arrow keys move ~10px per press in GNOME's keyboard move mode
+  - Steps: `abs(dx) // 10` Right/Left presses + `abs(dy) // 10` Up/Down presses
+- `resize_window(dw, dh)`: Send `Alt+F8`, then arrow keys, then `Return`
+- `snap_window("maximize")`: `key_combo("super+Up")`
+- `snap_window("restore")`: `key_combo("super+Down")`
+- `snap_window("left")`: `key_combo("super+Left")`
+- `snap_window("right")`: `key_combo("super+Right")`
+
+**TDD tests (tests/test_window_mgmt.py):**
+4. `test_move_sends_alt_f7_then_arrows` — verify sequence: Alt+F7, arrow keys, Return
+5. `test_move_right_uses_right_arrows` — positive dx sends Right keys
+6. `test_move_left_uses_left_arrows` — negative dx sends Left keys
+7. `test_resize_sends_alt_f8_then_arrows` — verify Alt+F8 sequence
+8. `test_snap_maximize_sends_super_up` — verify key combo
+9. `test_snap_left_sends_super_left` — verify key combo
+10. `test_snap_invalid_position_returns_error` — bad position handled
+
+**Dependencies:** None — uses existing key_combo. Approximate (keyboard move mode is ~10px per arrow press).
+
+---
+
+## F3: Toggle Fullscreen / Minimize
+
+**Verified API:**
+- `toggle-fullscreen` has NO default keybinding in GNOME WM. Most apps use `F11` internally.
+- Keyboard shortcuts (from `org.gnome.desktop.wm.keybindings`):
+  - `Alt+F10` — toggle maximized
+  - `Super+h` — minimize
+  - `F11` — fullscreen (app-level, works in Firefox, Nautilus, etc.)
+
+**Tool interface:**
+```python
+@mcp.tool(description="Toggle the focused window's state.")
+def toggle_window_state(
+    state: Literal["fullscreen", "maximize", "minimize"],
+) -> CallToolResult: ...
+```
+
+**Implementation (desktop/window_management.py):**
+- `"fullscreen"`: `press_key("F11")` (app-level, most apps handle this)
+- `"maximize"`: `key_combo("alt+F10")` (WM-level toggle)
+- `"minimize"`: `key_combo("super+h")`
+
+**TDD tests (tests/test_window_mgmt.py):**
+11. `test_toggle_fullscreen_sends_f11` — verify press_key("F11")
+12. `test_toggle_maximize_sends_alt_f10` — verify key_combo
+13. `test_minimize_sends_super_h` — verify key_combo
+14. `test_invalid_state_returns_error` — bad state handled
+
+**Dependencies:** None.
+
+---
+
+## F4: OCR Type-Into by Label
+
+**Verified approach (from hyprland-mcp source):**
+- hyprland-mcp clicks the placeholder text itself (not a nearby input field) — works because clicking placeholder text inside an input focuses that field.
+- We have a significant advantage: AT-SPI can find editable elements directly.
+
+**Hybrid AT-SPI + OCR approach:**
+1. AT-SPI first: Search for editable elements whose name/label contains the hint text
+2. If found, use `set_element_text()` (faster, more reliable)
+3. If not found, fall back to OCR: find text on screen, click it, then type
+
+**Tool interface:**
+```python
+@mcp.tool(
+    description=(
+        "Find an input field by its label or placeholder text and type into it. "
+        "Tries AT-SPI first, falls back to OCR."
+    )
+)
+def type_into(
+    label: str,
+    text: str,
+    submit: bool = False,
+) -> CallToolResult: ...
+```
+
+**Implementation (desktop/ocr.py — extend existing):**
+1. AT-SPI path: `find_elements(query=label, showing_only=True)` → filter for editable elements → `set_element_text(element_id, text)` or `focus_element` + `type_text`
+2. OCR path: `find_text_ocr(label)` → click center of match → `type_text(text)`
+3. If `submit=True`: `press_key("Return")` after typing
+
+**TDD tests (tests/test_type_into.py):**
+1. `test_atspi_path_finds_editable_element` — when AT-SPI finds editable match, uses set_element_text
+2. `test_atspi_path_skips_non_editable` — non-editable matches are skipped
+3. `test_ocr_fallback_when_atspi_fails` — when no AT-SPI match, OCR is used
+4. `test_ocr_clicks_then_types` — OCR path: click match center, then type_text
+5. `test_submit_sends_return` — submit=True sends Return key after typing
+6. `test_no_match_returns_error` — neither AT-SPI nor OCR finds the label
+7. `test_empty_label_returns_error` — empty label string handled
+
+**Dependencies:** Existing OCR + AT-SPI infrastructure.
+
+---
+
+## F5: VLM/AI Vision Analysis
+
+**Verified API options:**
+- **OpenRouter** (OpenAI-compatible): `POST https://openrouter.ai/api/v1/chat/completions`
+  - Free vision models: `google/gemma-3-27b-it:free`, `nvidia/nemotron-nano-12b-v2-vl:free`
+  - Image format: `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}`
+  - Env var: `OPENROUTER_API_KEY`
+- **Anthropic Claude**: `POST https://api.anthropic.com/v1/messages`
+  - Image format: `{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "..."}}`
+  - Env var: `ANTHROPIC_API_KEY`
+  - Cost: ~$0.008/screenshot at 1080p
+- **Ollama local**: `POST http://localhost:11434/api/chat`
+  - Image format: `"images": ["<base64>"]` on message object
+  - Free, requires local GPU
+- **Latency**: 3-15s depending on provider and model
+- **Dependencies**: `httpx` or `requests` for HTTP calls, `base64` (stdlib)
+
+**Tool interfaces:**
+```python
+@mcp.tool(description="Analyze a screenshot using a vision language model.")
+def analyze_screenshot(
+    prompt: str,
+    provider: Literal["openrouter", "anthropic", "ollama"] = "openrouter",
+    model: str | None = None,
+) -> CallToolResult: ...
+
+@mcp.tool(description="Compare two screenshots using a vision language model.")
+def compare_screenshots(
+    image_path_1: str,
+    image_path_2: str,
+    prompt: str | None = None,
+    provider: Literal["openrouter", "anthropic", "ollama"] = "openrouter",
+) -> CallToolResult: ...
+```
+
+**Implementation (new file: desktop/vlm.py):**
+1. Take screenshot (or use provided path)
+2. Read file → base64 encode
+3. Build provider-specific request payload
+4. HTTP POST with timeout (60s)
+5. Parse response → return analysis text
+6. API key from env var, with clear error if missing
+
+**Provider abstraction:**
+```python
+def _build_openrouter_payload(prompt, images_b64, model): ...
+def _build_anthropic_payload(prompt, images_b64, model): ...
+def _build_ollama_payload(prompt, images_b64, model): ...
+```
+
+**TDD tests (tests/test_vlm.py):**
+1. `test_openrouter_payload_format` — correct JSON structure with image_url
+2. `test_anthropic_payload_format` — correct JSON structure with image source
+3. `test_ollama_payload_format` — correct JSON structure with images array
+4. `test_missing_api_key_returns_error` — no env var → clean error
+5. `test_api_timeout_returns_error` — timeout handled gracefully
+6. `test_base64_encoding_correct` — PNG file encodes correctly
+7. `test_analyze_takes_screenshot_first` — screenshot called when no path given
+8. `test_compare_sends_two_images` — both images in payload
+
+**Dependencies:** `httpx` (add to pyproject.toml) or `requests`. `base64` (stdlib).
+
+---
+
 ## Items NOT planned (N9-N15)
 
 These are lower priority. Plans will be written when higher-priority items are complete:
