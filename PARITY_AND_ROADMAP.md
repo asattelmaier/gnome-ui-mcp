@@ -128,11 +128,11 @@ Researched: kwin-mcp, hyprland-mcp (alderban107), wayland-mcp (someaka), hyprmcp
 ### Phase 2: D-Bus tools (new files, G6 establishes Variant serialization pattern)
 | # | Item | Why this order | Status |
 |---|------|---------------|--------|
-| 5 | G6 — Generic D-Bus call | Builds GLib.Variant↔JSON serialization reused by 6-9 | TODO |
-| 6 | N4 — Monitor/display info | Simple D-Bus read, new file | TODO |
-| 7 | N3 — Workspace management | D-Bus + key combos, new file | TODO |
-| 8 | N2 — Notification monitoring | D-Bus eavesdrop, new file | TODO |
-| 9 | N5 — Screen recording / GIF | D-Bus Shell.Screencast, new file | TODO |
+| 5 | G6 — Generic D-Bus call | Builds GLib.Variant↔JSON serialization reused by 6-9 | DONE |
+| 6 | N4 — Monitor/display info | Simple D-Bus read, new file | DONE |
+| 7 | N3 — Workspace management | D-Bus + key combos, new file | DONE |
+| 8 | N2 — Notification monitoring | D-Bus eavesdrop, new file | DONE |
+| 9 | N5 — Screen recording / GIF | D-Bus Shell.Screencast, new file | DONE |
 
 ### Phase 3: Independent capabilities (new files, Pillow-dependent grouped)
 | # | Item | Why this order | Status |
