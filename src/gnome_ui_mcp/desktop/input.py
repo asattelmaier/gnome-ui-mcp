@@ -123,6 +123,24 @@ class _MutterRemoteDesktopInput:
             "stream_path": stream_path,
         }
 
+    def move_to(self, x: int, y: int) -> JsonDict:
+        stream_path, stage_area = self._ensure_session()
+        local_x, local_y = stage_area.local_coordinates(x, y)
+
+        self._call_session(
+            "NotifyPointerMotionAbsolute",
+            GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
+        )
+        time.sleep(0.02)
+
+        return {
+            "success": True,
+            "x": x,
+            "y": y,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
     def press_key(self, key_name: str) -> JsonDict:
         keyval = _key_name_to_keyval(key_name)
 
@@ -525,6 +543,20 @@ def perform_scroll(
         return _REMOTE_INPUT.scroll(direction, clicks, x, y)
     except Exception as exc:
         result = _perform_scroll_atspi(direction, clicks, x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_mouse_move_atspi(x: int, y: int) -> JsonDict:
+    Atspi.generate_mouse_event(x, y, "abs")
+    return {"success": True, "x": x, "y": y, "backend": "atspi"}
+
+
+def perform_mouse_move(x: int, y: int) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.move_to(x, y)
+    except Exception as exc:
+        result = _perform_mouse_move_atspi(x, y)
         result["fallback_error"] = str(exc)
         return result
 
