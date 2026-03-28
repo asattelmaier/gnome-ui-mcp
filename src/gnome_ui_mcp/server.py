@@ -220,9 +220,14 @@ def scroll(
             clicks=clicks,
             x=x,
             y=y,
+        )
+    )
+
+
+@mcp.tool(
+    description=(
         "Drag from one screen position to another by pressing a mouse button, "
-        "moving through intermediate positions, and releasing. Useful for "
-        "drag-and-drop, slider adjustment, and window resizing."
+        "moving through intermediate positions, and releasing."
     )
 )
 def drag(

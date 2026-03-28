@@ -642,6 +642,10 @@ def _perform_scroll_atspi(
         "clicks": clicks,
         "x": x,
         "y": y,
+        "backend": "atspi",
+    }
+
+
 ATSPI_BUTTON_PRESS = {"left": "b1p", "middle": "b2p", "right": "b3p"}
 ATSPI_BUTTON_RELEASE = {"left": "b1r", "middle": "b2r", "right": "b3r"}
 
@@ -715,6 +719,10 @@ def perform_scroll(
         return _REMOTE_INPUT.scroll(direction, clicks, x, y)
     except Exception as exc:
         result = _perform_scroll_atspi(direction, clicks, x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
 def perform_drag(
     start_x: int,
     start_y: int,

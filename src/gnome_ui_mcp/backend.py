@@ -128,6 +128,9 @@ def scroll(
         clicks=clicks,
         x=x,
         y=y,
+    )
+
+
 def drag(
     start_x: int,
     start_y: int,
