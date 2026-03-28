@@ -91,7 +91,7 @@
 | Wayland protocol info | ✅ | ✅ | ❌ | ❌ | ❌ |
 | | | | | | |
 | **ARCHITECTURE** | | | | | |
-| Session isolation | ❌ | ✅ (D-Bus + display + input + home) | ❌ | ❌ | ❌ |
+| Session isolation | ✅ gnome-shell --headless | ✅ (D-Bus + display + input + home) | ❌ | ❌ | ❌ |
 | Action chaining | ❌ | ❌ | ❌ | ✅ chain: syntax | ❌ |
 | Coordinate mapping | ❌ | ❌ | ✅ formula per screenshot | ❌ | ❌ |
 | Screenshot auto-resize | ❌ | ❌ | ✅ JPEG + scale | ❌ | ❌ |

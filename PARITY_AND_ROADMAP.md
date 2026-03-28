@@ -74,7 +74,7 @@ kwin-mcp has 29 tools, full session isolation, EIS input, AT-SPI2, touch input.
 | G5 | Screenshot burst after action | `screenshot_after_ms` param on action tools | Medium | TODO |
 | G6 | Generic D-Bus call | dbus_call | High | TODO |
 | G7 | App log capture (stdout/stderr) | read_app_log | Medium | TODO |
-| G8 | Session isolation (nested compositor) | session_start, session_stop | Low | DEFERRED |
+| G8 | Session isolation (gnome-shell --headless) | session_start, session_stop, session_info | Low | DONE |
 | G9 | Wayland protocol introspection | wayland_info | Low | TODO |
 
 ---
