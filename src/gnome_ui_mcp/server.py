@@ -298,6 +298,41 @@ def screenshot(filename: str | None = None) -> CallToolResult:
     return _run_tool(lambda: backend.screenshot(filename=filename))
 
 
+@mcp.tool(description="Capture a rectangular region of the screen to a PNG file.")
+def screenshot_area(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    filename: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screenshot_area(x=x, y=y, width=width, height=height, filename=filename)
+    )
+
+
+@mcp.tool(
+    description=(
+        "Capture a window to a PNG file. Focuses the window by element_id first, "
+        "then captures the currently focused window via D-Bus ScreenshotWindow."
+    )
+)
+def screenshot_window(
+    window_element_id: str,
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screenshot_window(
+            window_element_id=window_element_id,
+            include_frame=include_frame,
+            include_cursor=include_cursor,
+            filename=filename,
+        )
+    )
+
+
 @mcp.tool(description="Return the deepest visible element at a given screen coordinate.")
 def element_at_point(
     x: int,

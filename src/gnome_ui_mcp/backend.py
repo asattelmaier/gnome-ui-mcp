@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from .desktop import accessibility, input, interaction
 
 JsonDict = dict[str, object]
@@ -175,6 +177,37 @@ def key_combo(
 
 def screenshot(filename: str | None = None) -> JsonDict:
     return input.screenshot(filename=filename)
+
+
+def screenshot_area(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    filename: str | None = None,
+) -> JsonDict:
+    return input.screenshot_area(x=x, y=y, width=width, height=height, filename=filename)
+
+
+def screenshot_window(
+    window_element_id: str,
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> JsonDict:
+    focus_result = accessibility.focus_element(element_id=window_element_id)
+    if not focus_result.get("success"):
+        return {
+            "success": False,
+            "error": f"Could not focus window: {focus_result.get('error', 'unknown')}",
+            "window_element_id": window_element_id,
+        }
+    time.sleep(0.15)
+    result = input.screenshot_window(
+        include_frame=include_frame, include_cursor=include_cursor, filename=filename
+    )
+    result["window_element_id"] = window_element_id
+    return result
 
 
 def element_at_point(

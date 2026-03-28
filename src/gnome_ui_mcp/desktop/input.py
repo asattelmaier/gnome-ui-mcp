@@ -727,9 +727,11 @@ def remote_input_info() -> JsonDict:
     return _REMOTE_INPUT.info()
 
 
-def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
-    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+_screenshot_lock = threading.Lock()
 
+
+def _acquire_screenshot_bus() -> Gio.DBusConnection:
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     acquire_result = bus.call_sync(
         "org.freedesktop.DBus",
         "/org/freedesktop/DBus",
@@ -745,27 +747,11 @@ def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
     if reply_code not in (1, 4):
         msg = f"Could not acquire {GNOME_SCREENSHOT_WELL_KNOWN_NAME} bus name (code={reply_code})"
         raise RuntimeError(msg)
+    return bus
 
+
+def _release_screenshot_bus(bus: Gio.DBusConnection) -> None:
     try:
-        proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
-            Gio.DBusProxyFlags.DO_NOT_AUTO_START,
-            None,
-            GNOME_SHELL_SCREENSHOT_BUS,
-            GNOME_SHELL_SCREENSHOT_PATH,
-            GNOME_SHELL_SCREENSHOT_IFACE,
-            None,
-        )
-        result = proxy.call_sync(
-            "Screenshot",
-            GLib.Variant("(bbs)", (False, False, output_path)),
-            Gio.DBusCallFlags.NONE,
-            5000,
-            None,
-        )
-        success, filename_used = result.unpack()
-        return success, filename_used
-    finally:
         bus.call_sync(
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
@@ -777,6 +763,78 @@ def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
             -1,
             None,
         )
+    except Exception:
+        pass
+
+
+def _screenshot_proxy() -> Gio.DBusProxy:
+    return Gio.DBusProxy.new_for_bus_sync(
+        Gio.BusType.SESSION,
+        Gio.DBusProxyFlags.DO_NOT_AUTO_START,
+        None,
+        GNOME_SHELL_SCREENSHOT_BUS,
+        GNOME_SHELL_SCREENSHOT_PATH,
+        GNOME_SHELL_SCREENSHOT_IFACE,
+        None,
+    )
+
+
+def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "Screenshot",
+                GLib.Variant("(bbs)", (False, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
+
+
+def _screenshot_area_dbus(
+    x: int, y: int, width: int, height: int, output_path: str
+) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "ScreenshotArea",
+                GLib.Variant("(iiiibs)", (x, y, width, height, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
+
+
+def _screenshot_window_dbus(
+    include_frame: bool, include_cursor: bool, output_path: str
+) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "ScreenshotWindow",
+                GLib.Variant("(bbbs)", (include_frame, include_cursor, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
 
 
 def screenshot_info() -> JsonDict:
@@ -821,3 +879,65 @@ def screenshot(filename: str | None = None) -> JsonDict:
         return {"success": False, "error": "Shell screenshot returned failure"}
 
     return {"success": True, "path": filename_used}
+
+
+def screenshot_area(
+    x: int, y: int, width: int, height: int, filename: str | None = None
+) -> JsonDict:
+    if width <= 0 or height <= 0:
+        return {"success": False, "error": "Width and height must be positive"}
+
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    output = (
+        Path(filename).expanduser()
+        if filename
+        else CACHE_DIR / f"screenshot-area-{int(time.time() * 1000)}.png"
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        success, filename_used = _screenshot_area_dbus(x, y, width, height, str(output))
+    except (GLib.Error, RuntimeError) as exc:
+        return {"success": False, "error": str(exc)}
+
+    if not success:
+        return {"success": False, "error": "Shell ScreenshotArea returned failure"}
+
+    return {
+        "success": True,
+        "path": filename_used,
+        "mode": "area",
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+    }
+
+
+def screenshot_window(
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> JsonDict:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    output = (
+        Path(filename).expanduser()
+        if filename
+        else CACHE_DIR / f"screenshot-window-{int(time.time() * 1000)}.png"
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        success, filename_used = _screenshot_window_dbus(include_frame, include_cursor, str(output))
+    except (GLib.Error, RuntimeError) as exc:
+        return {"success": False, "error": str(exc)}
+
+    if not success:
+        return {"success": False, "error": "Shell ScreenshotWindow returned failure"}
+
+    return {
+        "success": True,
+        "path": filename_used,
+        "mode": "window",
+        "include_frame": include_frame,
+    }
