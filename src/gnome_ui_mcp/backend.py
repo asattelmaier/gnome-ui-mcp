@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction, window_management
+from .desktop import accessibility, input, interaction, ocr, window_management
 
 JsonDict = dict[str, object]
 
@@ -338,3 +338,7 @@ def snap_window(position: str) -> JsonDict:
 
 def toggle_window_state(state: str) -> JsonDict:
     return window_management.toggle_window_state(state=state)
+
+
+def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
+    return ocr.type_into(label=label, text=text, submit=submit)

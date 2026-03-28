@@ -526,3 +526,13 @@ def toggle_window_state(
     state: Literal["fullscreen", "maximize", "minimize"],
 ) -> CallToolResult:
     return _run_tool(lambda: backend.toggle_window_state(state=state))
+
+
+@mcp.tool(
+    description=(
+        "Find an input field by label text (AT-SPI first, OCR fallback) and type text into it. "
+        "Optionally press Return to submit."
+    )
+)
+def type_into(label: str, text: str, submit: bool = False) -> CallToolResult:
+    return _run_tool(lambda: backend.type_into(label=label, text=text, submit=submit))
