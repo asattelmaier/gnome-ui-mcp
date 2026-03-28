@@ -91,8 +91,22 @@ tag_issue=""
 git rev-parse --verify "refs/tags/v${next_version}" >/dev/null 2>&1 && \
   tag_issue="Tag v${next_version} already exists."
 
+# --- Generate changelog ---
+previous_tag="$(git tag --sort=-v:refname | grep '^v' | head -1 || true)"
+
+if [[ -n "$previous_tag" ]]; then
+  changelog="$(git log --format="- %s" "${previous_tag}..HEAD" \
+    | grep -v "^- Release version" || true)"
+else
+  changelog="$(git log --format="- %s" \
+    | grep -v "^- Release version" || true)"
+fi
+
 echo "Current version: $current_version"
 echo "Next version:    $next_version"
+echo
+echo "Changelog:"
+echo "$changelog"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo
@@ -149,12 +163,16 @@ uv lock
 ./scripts/check.sh
 
 git add pyproject.toml server.json uv.lock
-git commit -m "Release version ${next_version}"
-git tag -a "v${next_version}" -m "Release v${next_version}"
+git commit -m "Release version ${next_version}
+
+${changelog}"
+git tag -a "v${next_version}" -m "Release v${next_version}
+
+${changelog}"
 
 echo
 echo "Release prepared."
-echo "Commit created and tag v${next_version} added locally."
+echo "Commit and tag v${next_version} created locally."
 echo
 echo "Next steps:"
 echo "  git push origin main"

@@ -29,37 +29,22 @@ uv run --active gnome-ui-mcp
 
 ## Releasing
 
-Preferred path:
-
 ```bash
-./scripts/release.sh patch
-```
-
-The script updates `pyproject.toml`, `server.json`, and `uv.lock`, refreshes
-the local environment, runs `./scripts/check.sh`, creates the release commit,
-and adds the annotated tag locally. It does not push.
-
-You can also release an explicit version:
-
-```bash
-./scripts/release.sh 0.1.1
-```
-
-To preview the next version without changing anything:
-
-```bash
-./scripts/release.sh --dry-run patch
-```
-
-After the script finishes, push the branch and the tag:
-
-```bash
+./scripts/release.sh patch          # bump, check, changelog, commit, tag
 git push origin main
-git push origin v0.1.1
+git push origin v0.1.4              # triggers the release workflow
 ```
 
-Optionally publish a GitHub Release for the same tag.
+The release script bumps `pyproject.toml`, `server.json`, and `uv.lock`,
+runs `./scripts/check.sh`, generates a changelog from git history, and
+creates the commit and annotated tag locally.
 
-Pushing a `v*` tag triggers CI and publishes versioned GHCR image tags.
-The same tag push also publishes the server metadata to the official MCP Registry.
-Pushing `main` updates the `latest` image tag.
+Use `minor` or `major` instead of `patch`, or pass an explicit version
+like `./scripts/release.sh 0.2.0`. Preview with `--dry-run`.
+
+Pushing the `v*` tag triggers the release workflow which:
+
+- Verifies the build and runs tests
+- Builds and pushes the Docker image to GHCR (versioned + `latest`)
+- Creates a GitHub Release with an auto-generated changelog
+- Publishes the server metadata to the MCP Registry
