@@ -480,7 +480,9 @@ def wait_for_element_gone(
 
 
 @mcp.tool(
-    description="Extract text from the screen or a region using OCR. Use for apps with poor accessibility."
+    description=(
+        "Extract text from the screen or a region using OCR. Use for apps with poor accessibility."
+    )
 )
 def ocr_screen(
     x: int | None = None,

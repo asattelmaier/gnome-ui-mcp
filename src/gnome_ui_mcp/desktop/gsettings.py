@@ -12,7 +12,7 @@ def _variant_to_json(val: Any) -> Any:
         return _variant_to_json(val.unpack())
     if isinstance(val, dict):
         return {k: _variant_to_json(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple)):
+    if isinstance(val, list | tuple):
         return [_variant_to_json(item) for item in val]
     return val
 
