@@ -500,3 +500,10 @@ def dbus_call(
             timeout_ms=timeout_ms,
         )
     )
+
+
+@mcp.tool(
+    description="List all connected monitors with resolution, position, scale, and hardware info."
+)
+def list_monitors() -> CallToolResult:
+    return _run_tool(backend.list_monitors)

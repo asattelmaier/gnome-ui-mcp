@@ -5,7 +5,7 @@ import time
 from .desktop import accessibility, input, interaction
 import shutil
 
-from .desktop import accessibility, dbus, input, interaction
+from .desktop import accessibility, dbus, display, input, interaction
 
 JsonDict = dict[str, object]
 
@@ -341,3 +341,7 @@ def dbus_call(
         args=args,
         timeout_ms=timeout_ms,
     )
+
+
+def list_monitors() -> JsonDict:
+    return display.list_monitors()
