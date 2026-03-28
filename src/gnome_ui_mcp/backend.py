@@ -128,6 +128,23 @@ def scroll(
         clicks=clicks,
         x=x,
         y=y,
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    return input.perform_drag(
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        button=button,
+        steps=steps,
+        duration_ms=duration_ms,
     )
 
 

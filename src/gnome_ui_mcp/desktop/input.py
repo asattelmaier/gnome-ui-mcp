@@ -151,6 +151,89 @@ class _MutterRemoteDesktopInput:
             "stream_path": stream_path,
         }
 
+    def drag_to(
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        *,
+        button: str = "left",
+        steps: int = 10,
+        duration_ms: int = 300,
+    ) -> JsonDict:
+        button_code = REMOTE_POINTER_BUTTONS.get(button.lower())
+        if button_code is None:
+            msg = "button must be left, middle, or right"
+            raise ValueError(msg)
+
+        stream_path, stage_area = self._ensure_session()
+        start_lx, start_ly = stage_area.local_coordinates(start_x, start_y)
+        end_lx, end_ly = stage_area.local_coordinates(end_x, end_y)
+
+        def _call(method: str, params: GLib.Variant) -> None:
+            self._rd_session.call_sync(method, params, Gio.DBusCallFlags.NONE, -1, None)
+
+        with self._lock:
+            if self._rd_session is None:
+                msg = "Remote desktop session is not available"
+                raise RuntimeError(msg)
+
+            session = self._rd_session
+            _call(
+                "NotifyPointerMotionAbsolute",
+                GLib.Variant("(sdd)", (stream_path, start_lx, start_ly)),
+            )
+            time.sleep(0.02)
+            _call("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
+            try:
+                actual_steps = max(0, steps)
+                start_time = time.monotonic()
+                for i in range(1, actual_steps + 1):
+                    frac = i / actual_steps if actual_steps else 1.0
+                    ix = start_lx + frac * (end_lx - start_lx)
+                    iy = start_ly + frac * (end_ly - start_ly)
+                    _call(
+                        "NotifyPointerMotionAbsolute",
+                        GLib.Variant("(sdd)", (stream_path, ix, iy)),
+                    )
+                    if duration_ms > 0 and actual_steps > 0:
+                        target = start_time + (duration_ms / 1000) * i / actual_steps
+                        remaining = target - time.monotonic()
+                        if remaining > 0:
+                            time.sleep(remaining)
+
+                if actual_steps == 0:
+                    _call(
+                        "NotifyPointerMotionAbsolute",
+                        GLib.Variant("(sdd)", (stream_path, end_lx, end_ly)),
+                    )
+            finally:
+                try:
+                    session.call_sync(
+                        "NotifyPointerButton",
+                        GLib.Variant("(ib)", (button_code, False)),
+                        Gio.DBusCallFlags.NONE,
+                        -1,
+                        None,
+                    )
+                except Exception:
+                    pass
+
+        return {
+            "success": True,
+            "start_x": start_x,
+            "start_y": start_y,
+            "end_x": end_x,
+            "end_y": end_y,
+            "button": button.lower(),
+            "click_count": 1,
+            "steps": steps,
+            "duration_ms": duration_ms,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
     def press_key(self, key_name: str) -> JsonDict:
         keyval = _key_name_to_keyval(key_name)
 
@@ -559,6 +642,58 @@ def _perform_scroll_atspi(
         "clicks": clicks,
         "x": x,
         "y": y,
+ATSPI_BUTTON_PRESS = {"left": "b1p", "middle": "b2p", "right": "b3p"}
+ATSPI_BUTTON_RELEASE = {"left": "b1r", "middle": "b2r", "right": "b3r"}
+
+
+def _perform_drag_atspi(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    btn = button.lower()
+    press_event = ATSPI_BUTTON_PRESS.get(btn)
+    release_event = ATSPI_BUTTON_RELEASE.get(btn)
+    if press_event is None or release_event is None:
+        msg = "button must be left, middle, or right"
+        raise ValueError(msg)
+
+    Atspi.generate_mouse_event(start_x, start_y, "abs")
+    time.sleep(0.05)
+    Atspi.generate_mouse_event(start_x, start_y, press_event)
+    try:
+        actual_steps = max(0, steps)
+        start_time = time.monotonic()
+        for i in range(1, actual_steps + 1):
+            frac = i / actual_steps if actual_steps else 1.0
+            ix = int(start_x + frac * (end_x - start_x))
+            iy = int(start_y + frac * (end_y - start_y))
+            Atspi.generate_mouse_event(ix, iy, "abs")
+            if duration_ms > 0 and actual_steps > 0:
+                target = start_time + (duration_ms / 1000) * i / actual_steps
+                remaining = target - time.monotonic()
+                if remaining > 0:
+                    time.sleep(remaining)
+
+        if actual_steps == 0:
+            Atspi.generate_mouse_event(end_x, end_y, "abs")
+    finally:
+        Atspi.generate_mouse_event(end_x, end_y, release_event)
+
+    return {
+        "success": True,
+        "start_x": start_x,
+        "start_y": start_y,
+        "end_x": end_x,
+        "end_y": end_y,
+        "button": btn,
+        "steps": steps,
+        "duration_ms": duration_ms,
         "backend": "atspi",
     }
 
@@ -580,6 +715,36 @@ def perform_scroll(
         return _REMOTE_INPUT.scroll(direction, clicks, x, y)
     except Exception as exc:
         result = _perform_scroll_atspi(direction, clicks, x, y)
+def perform_drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.drag_to(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+        )
+    except Exception as exc:
+        result = _perform_drag_atspi(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+        )
         result["fallback_error"] = str(exc)
         return result
 

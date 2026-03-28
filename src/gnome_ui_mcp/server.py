@@ -220,6 +220,29 @@ def scroll(
             clicks=clicks,
             x=x,
             y=y,
+        "Drag from one screen position to another by pressing a mouse button, "
+        "moving through intermediate positions, and releasing. Useful for "
+        "drag-and-drop, slider adjustment, and window resizing."
+    )
+)
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: Literal["left", "middle", "right"] = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.drag(
+            start_x=start_x,
+            start_y=start_y,
+            end_x=end_x,
+            end_y=end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
         )
     )
 
