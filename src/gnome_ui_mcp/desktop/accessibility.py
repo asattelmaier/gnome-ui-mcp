@@ -59,10 +59,14 @@ def _path_to_id(path: Iterable[int]) -> str:
 
 def _id_to_path(element_id: str) -> list[int]:
     try:
-        return [int(part) for part in element_id.split("/") if part != ""]
+        parts = [int(part) for part in element_id.split("/") if part != ""]
     except ValueError as exc:
         msg = f"Invalid element_id: {element_id}"
         raise ValueError(msg) from exc
+    if not parts:
+        msg = f"Invalid element_id: {element_id!r}"
+        raise ValueError(msg)
+    return parts
 
 
 def _resolve_element(element_id: str) -> Atspi.Accessible:
