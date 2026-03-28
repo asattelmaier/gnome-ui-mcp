@@ -125,11 +125,16 @@ def resolve_click_target(element_id: str) -> CallToolResult:
         "observable effect verification."
     )
 )
-def click_element(element_id: str, action_name: str | None = None) -> CallToolResult:
+def click_element(
+    element_id: str,
+    action_name: str | None = None,
+    click_count: Literal[1, 2, 3] = 1,
+) -> CallToolResult:
     return _run_tool(
         lambda: backend.click_element(
             element_id=element_id,
             action_name=action_name,
+            click_count=click_count,
         )
     )
 
@@ -192,8 +197,9 @@ def click_at(
     x: int,
     y: int,
     button: Literal["left", "middle", "right"] = "left",
+    click_count: Literal[1, 2, 3] = 1,
 ) -> CallToolResult:
-    return _run_tool(lambda: backend.click_at(x=x, y=y, button=button))
+    return _run_tool(lambda: backend.click_at(x=x, y=y, button=button, click_count=click_count))
 
 
 @mcp.tool(
@@ -218,9 +224,39 @@ def scroll(
     )
 
 
+@mcp.tool(
+    description=(
+        "Move the mouse cursor to absolute screen coordinates without clicking. "
+        "Useful for hover effects, tooltips, and drag preparation."
+    )
+)
+def mouse_move(x: int, y: int) -> CallToolResult:
+    return _run_tool(lambda: backend.mouse_move(x=x, y=y))
+
+
 @mcp.tool(description="Replace the text contents of an editable element.")
 def set_element_text(element_id: str, text: str) -> CallToolResult:
     return _run_tool(lambda: backend.set_element_text(element_id=element_id, text=text))
+
+
+@mcp.tool(
+    description=(
+        "Select text within an element using the AT-SPI Text interface. "
+        "Provide start_offset and end_offset for a range, or omit both to select all text."
+    )
+)
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.select_element_text(
+            element_id=element_id,
+            start_offset=start_offset,
+            end_offset=end_offset,
+        )
+    )
 
 
 @mcp.tool(description="Type text into the currently focused element.")
@@ -280,6 +316,41 @@ def key_combo(
 @mcp.tool(description="Capture the current GNOME desktop to a PNG file.")
 def screenshot(filename: str | None = None) -> CallToolResult:
     return _run_tool(lambda: backend.screenshot(filename=filename))
+
+
+@mcp.tool(description="Capture a rectangular region of the screen to a PNG file.")
+def screenshot_area(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    filename: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screenshot_area(x=x, y=y, width=width, height=height, filename=filename)
+    )
+
+
+@mcp.tool(
+    description=(
+        "Capture a window to a PNG file. Focuses the window by element_id first, "
+        "then captures the currently focused window via D-Bus ScreenshotWindow."
+    )
+)
+def screenshot_window(
+    window_element_id: str,
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screenshot_window(
+            window_element_id=window_element_id,
+            include_frame=include_frame,
+            include_cursor=include_cursor,
+            filename=filename,
+        )
+    )
 
 
 @mcp.tool(description="Return the deepest visible element at a given screen coordinate.")

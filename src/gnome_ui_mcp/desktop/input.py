@@ -97,7 +97,7 @@ class _MutterRemoteDesktopInput:
             ),
         }
 
-    def click_at(self, x: int, y: int, *, button: str = "left") -> JsonDict:
+    def click_at(self, x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
         button_code = REMOTE_POINTER_BUTTONS.get(button.lower())
         if button_code is None:
             msg = "button must be left, middle, or right"
@@ -111,14 +111,39 @@ class _MutterRemoteDesktopInput:
             GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
         )
         time.sleep(0.02)
-        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
-        self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, False)))
+        with self._lock:
+            for click_index in range(click_count):
+                if click_index > 0:
+                    time.sleep(0.05)
+                self._call_session("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
+                self._call_session(
+                    "NotifyPointerButton", GLib.Variant("(ib)", (button_code, False))
+                )
 
         return {
             "success": True,
             "x": x,
             "y": y,
             "button": button.lower(),
+            "click_count": click_count,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
+    def move_to(self, x: int, y: int) -> JsonDict:
+        stream_path, stage_area = self._ensure_session()
+        local_x, local_y = stage_area.local_coordinates(x, y)
+
+        self._call_session(
+            "NotifyPointerMotionAbsolute",
+            GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
+        )
+        time.sleep(0.02)
+
+        return {
+            "success": True,
+            "x": x,
+            "y": y,
             "backend": "mutter-remote-desktop",
             "stream_path": stream_path,
         }
@@ -455,25 +480,52 @@ def _text_unit_to_keyval(unit: str) -> int:
     return int(keyval)
 
 
-def _perform_mouse_click_atspi(x: int, y: int, *, button: str = "left") -> JsonDict:
-    button_map = {"left": "b1c", "middle": "b2c", "right": "b3c"}
-    event_name = button_map.get(button.lower())
-    if event_name is None:
+ATSPI_CLICK_EVENTS = {
+    "left": {1: "b1c", 2: "b1d"},
+    "middle": {1: "b2c", 2: "b2d"},
+    "right": {1: "b3c", 2: "b3d"},
+}
+
+
+def _perform_mouse_click_atspi(
+    x: int, y: int, *, button: str = "left", click_count: int = 1
+) -> JsonDict:
+    btn = button.lower()
+    click_events = ATSPI_CLICK_EVENTS.get(btn)
+    if click_events is None:
         msg = "button must be left, middle, or right"
         raise ValueError(msg)
 
     Atspi.generate_mouse_event(x, y, "abs")
     time.sleep(0.05)
-    Atspi.generate_mouse_event(x, y, event_name)
 
-    return {"success": True, "x": x, "y": y, "button": button.lower(), "backend": "atspi"}
+    if click_count <= 2:
+        event_name = click_events.get(click_count, click_events[1])
+        Atspi.generate_mouse_event(x, y, event_name)
+    else:
+        # Triple-click: double + single (no native triple in AT-SPI)
+        Atspi.generate_mouse_event(x, y, click_events[2])
+        time.sleep(0.05)
+        Atspi.generate_mouse_event(x, y, click_events[1])
+
+    return {
+        "success": True,
+        "x": x,
+        "y": y,
+        "button": btn,
+        "click_count": click_count,
+        "backend": "atspi",
+    }
 
 
-def perform_mouse_click(x: int, y: int, *, button: str = "left") -> JsonDict:
+def perform_mouse_click(x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
+    if not (1 <= click_count <= 3):
+        msg = f"click_count must be 1, 2, or 3 (got {click_count})"
+        raise ValueError(msg)
     try:
-        return _REMOTE_INPUT.click_at(x, y, button=button)
+        return _REMOTE_INPUT.click_at(x, y, button=button, click_count=click_count)
     except Exception as exc:
-        result = _perform_mouse_click_atspi(x, y, button=button)
+        result = _perform_mouse_click_atspi(x, y, button=button, click_count=click_count)
         result["fallback_error"] = str(exc)
         return result
 
@@ -525,6 +577,20 @@ def perform_scroll(
         return _REMOTE_INPUT.scroll(direction, clicks, x, y)
     except Exception as exc:
         result = _perform_scroll_atspi(direction, clicks, x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_mouse_move_atspi(x: int, y: int) -> JsonDict:
+    Atspi.generate_mouse_event(x, y, "abs")
+    return {"success": True, "x": x, "y": y, "backend": "atspi"}
+
+
+def perform_mouse_move(x: int, y: int) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.move_to(x, y)
+    except Exception as exc:
+        result = _perform_mouse_move_atspi(x, y)
         result["fallback_error"] = str(exc)
         return result
 
@@ -661,9 +727,11 @@ def remote_input_info() -> JsonDict:
     return _REMOTE_INPUT.info()
 
 
-def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
-    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+_screenshot_lock = threading.Lock()
 
+
+def _acquire_screenshot_bus() -> Gio.DBusConnection:
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     acquire_result = bus.call_sync(
         "org.freedesktop.DBus",
         "/org/freedesktop/DBus",
@@ -679,27 +747,11 @@ def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
     if reply_code not in (1, 4):
         msg = f"Could not acquire {GNOME_SCREENSHOT_WELL_KNOWN_NAME} bus name (code={reply_code})"
         raise RuntimeError(msg)
+    return bus
 
+
+def _release_screenshot_bus(bus: Gio.DBusConnection) -> None:
     try:
-        proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
-            Gio.DBusProxyFlags.DO_NOT_AUTO_START,
-            None,
-            GNOME_SHELL_SCREENSHOT_BUS,
-            GNOME_SHELL_SCREENSHOT_PATH,
-            GNOME_SHELL_SCREENSHOT_IFACE,
-            None,
-        )
-        result = proxy.call_sync(
-            "Screenshot",
-            GLib.Variant("(bbs)", (False, False, output_path)),
-            Gio.DBusCallFlags.NONE,
-            5000,
-            None,
-        )
-        success, filename_used = result.unpack()
-        return success, filename_used
-    finally:
         bus.call_sync(
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
@@ -711,6 +763,78 @@ def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
             -1,
             None,
         )
+    except Exception:
+        pass
+
+
+def _screenshot_proxy() -> Gio.DBusProxy:
+    return Gio.DBusProxy.new_for_bus_sync(
+        Gio.BusType.SESSION,
+        Gio.DBusProxyFlags.DO_NOT_AUTO_START,
+        None,
+        GNOME_SHELL_SCREENSHOT_BUS,
+        GNOME_SHELL_SCREENSHOT_PATH,
+        GNOME_SHELL_SCREENSHOT_IFACE,
+        None,
+    )
+
+
+def _screenshot_dbus(output_path: str) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "Screenshot",
+                GLib.Variant("(bbs)", (False, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
+
+
+def _screenshot_area_dbus(
+    x: int, y: int, width: int, height: int, output_path: str
+) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "ScreenshotArea",
+                GLib.Variant("(iiiibs)", (x, y, width, height, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
+
+
+def _screenshot_window_dbus(
+    include_frame: bool, include_cursor: bool, output_path: str
+) -> tuple[bool, str]:
+    with _screenshot_lock:
+        bus = _acquire_screenshot_bus()
+        try:
+            proxy = _screenshot_proxy()
+            result = proxy.call_sync(
+                "ScreenshotWindow",
+                GLib.Variant("(bbbs)", (include_frame, include_cursor, False, output_path)),
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+            success, filename_used = result.unpack()
+            return success, filename_used
+        finally:
+            _release_screenshot_bus(bus)
 
 
 def screenshot_info() -> JsonDict:
@@ -755,3 +879,65 @@ def screenshot(filename: str | None = None) -> JsonDict:
         return {"success": False, "error": "Shell screenshot returned failure"}
 
     return {"success": True, "path": filename_used}
+
+
+def screenshot_area(
+    x: int, y: int, width: int, height: int, filename: str | None = None
+) -> JsonDict:
+    if width <= 0 or height <= 0:
+        return {"success": False, "error": "Width and height must be positive"}
+
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    output = (
+        Path(filename).expanduser()
+        if filename
+        else CACHE_DIR / f"screenshot-area-{int(time.time() * 1000)}.png"
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        success, filename_used = _screenshot_area_dbus(x, y, width, height, str(output))
+    except (GLib.Error, RuntimeError) as exc:
+        return {"success": False, "error": str(exc)}
+
+    if not success:
+        return {"success": False, "error": "Shell ScreenshotArea returned failure"}
+
+    return {
+        "success": True,
+        "path": filename_used,
+        "mode": "area",
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+    }
+
+
+def screenshot_window(
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> JsonDict:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    output = (
+        Path(filename).expanduser()
+        if filename
+        else CACHE_DIR / f"screenshot-window-{int(time.time() * 1000)}.png"
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        success, filename_used = _screenshot_window_dbus(include_frame, include_cursor, str(output))
+    except (GLib.Error, RuntimeError) as exc:
+        return {"success": False, "error": str(exc)}
+
+    if not success:
+        return {"success": False, "error": "Shell ScreenshotWindow returned failure"}
+
+    return {
+        "success": True,
+        "path": filename_used,
+        "mode": "window",
+        "include_frame": include_frame,
+    }

@@ -300,13 +300,17 @@ def resolve_click_target(element_id: str) -> JsonDict:
     return result
 
 
-def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
+def click_element(
+    element_id: str, action_name: str | None = None, click_count: int = 1
+) -> JsonDict:
     resolved_element_id, target, recovery = _resolve_target_with_recovery(element_id)
     target_id = str(target["target_id"])
     accessible = accessibility._resolve_element(target_id)
 
     before = _effect_context(target_id)
-    action_index = accessibility._find_action_index(accessible, action_name)
+    action_index = (
+        accessibility._find_action_index(accessible, action_name) if click_count == 1 else None
+    )
     if action_index is not None:
         performed = accessible.do_action(action_index)
         result = {
@@ -341,7 +345,7 @@ def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
             "error": "Element is neither actionable nor clickable by bounds",
         }
 
-    result = input.perform_mouse_click(center[0], center[1])
+    result = input.perform_mouse_click(center[0], center[1], click_count=click_count)
     after = _effect_context(target_id)
     verified, verification = _verify_effect(before, after)
     result["element_id"] = element_id
@@ -634,11 +638,11 @@ def key_combo(
     return result
 
 
-def click_at(x: int, y: int, button: str = "left") -> JsonDict:
+def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> JsonDict:
     point_match = accessibility.element_at_point(x=x, y=y, include_click_target=True)
     target_id = accessibility._safe_call(lambda: point_match["match"]["click_target"]["target_id"])
     before = _effect_context(target_id) if target_id else _effect_context()
-    result = input.perform_mouse_click(x, y, button=button)
+    result = input.perform_mouse_click(x, y, button=button, click_count=click_count)
     after = _effect_context(target_id) if target_id else _effect_context()
     verified, verification = _verify_effect(before, after)
     result["point_target"] = point_match.get("match")

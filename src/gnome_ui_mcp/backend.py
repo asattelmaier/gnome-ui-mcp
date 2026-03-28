@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from .desktop import accessibility, input, interaction
 
 JsonDict = dict[str, object]
@@ -73,8 +75,12 @@ def resolve_click_target(element_id: str) -> JsonDict:
     return interaction.resolve_click_target(element_id=element_id)
 
 
-def click_element(element_id: str, action_name: str | None = None) -> JsonDict:
-    return interaction.click_element(element_id=element_id, action_name=action_name)
+def click_element(
+    element_id: str, action_name: str | None = None, click_count: int = 1
+) -> JsonDict:
+    return interaction.click_element(
+        element_id=element_id, action_name=action_name, click_count=click_count
+    )
 
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
@@ -107,8 +113,8 @@ def find_and_activate(
     )
 
 
-def click_at(x: int, y: int, button: str = "left") -> JsonDict:
-    return interaction.click_at(x=x, y=y, button=button)
+def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> JsonDict:
+    return interaction.click_at(x=x, y=y, button=button, click_count=click_count)
 
 
 def scroll(
@@ -125,8 +131,22 @@ def scroll(
     )
 
 
+def mouse_move(x: int, y: int) -> JsonDict:
+    return input.perform_mouse_move(x=x, y=y)
+
+
 def set_element_text(element_id: str, text: str) -> JsonDict:
     return accessibility.set_element_text(element_id=element_id, text=text)
+
+
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> JsonDict:
+    return accessibility.select_element_text(
+        element_id=element_id, start_offset=start_offset, end_offset=end_offset
+    )
 
 
 def type_text(text: str) -> JsonDict:
@@ -167,6 +187,37 @@ def key_combo(
 
 def screenshot(filename: str | None = None) -> JsonDict:
     return input.screenshot(filename=filename)
+
+
+def screenshot_area(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    filename: str | None = None,
+) -> JsonDict:
+    return input.screenshot_area(x=x, y=y, width=width, height=height, filename=filename)
+
+
+def screenshot_window(
+    window_element_id: str,
+    include_frame: bool = True,
+    include_cursor: bool = False,
+    filename: str | None = None,
+) -> JsonDict:
+    focus_result = accessibility.focus_element(element_id=window_element_id)
+    if not focus_result.get("success"):
+        return {
+            "success": False,
+            "error": f"Could not focus window: {focus_result.get('error', 'unknown')}",
+            "window_element_id": window_element_id,
+        }
+    time.sleep(0.15)
+    result = input.screenshot_window(
+        include_frame=include_frame, include_cursor=include_cursor, filename=filename
+    )
+    result["window_element_id"] = window_element_id
+    return result
 
 
 def element_at_point(

@@ -368,25 +368,67 @@ def _element_snapshot(element_id: str) -> JsonDict:
     }
 
 
+def _has_active_or_focused_window(app: Atspi.Accessible) -> bool:
+    """Check if an application has at least one ACTIVE or FOCUSED top-level window."""
+    child_count = _safe_call(app.get_child_count, 0) or 0
+    for index in range(child_count):
+        win = _safe_call(lambda idx=index: app.get_child_at_index(idx))
+        if win is None:
+            continue
+        state_set = _safe_call(win.get_state_set)
+        if state_set is None:
+            continue
+        if _safe_call(lambda ss=state_set: ss.contains(Atspi.StateType.ACTIVE), False):
+            return True
+        if _safe_call(lambda ss=state_set: ss.contains(Atspi.StateType.FOCUSED), False):
+            return True
+    return False
+
+
+def _is_focused(accessible: Atspi.Accessible) -> bool:
+    """O(1) check for the FOCUSED state via state_set.contains()."""
+    state_set = _safe_call(accessible.get_state_set)
+    if state_set is None:
+        return False
+    return bool(_safe_call(lambda: state_set.contains(Atspi.StateType.FOCUSED), False))
+
+
 def current_focus_metadata(*, max_depth: int = 16) -> JsonDict | None:
     best_match: JsonDict | None = None
     best_depth = -1
+    shell_match: JsonDict | None = None
+    shell_depth = -1
 
     for app, app_path in _iter_applications():
         app_label = _safe_call(app.get_name, "")
+        if not _has_active_or_focused_window(app):
+            continue
+
+        is_shell = app_label == "gnome-shell"
+
         for element, path, depth in _walk_tree(app, app_path, depth=0, max_depth=max_depth):
-            states = _element_states(element)
-            if "focused" not in states:
+            if not _is_focused(element):
                 continue
-            if depth < best_depth:
-                continue
+            if is_shell:
+                if depth > shell_depth:
+                    states = _element_states(element)
+                    shell_match = _element_summary(
+                        element, path, include_actions=False, include_text=True
+                    )
+                    shell_match["application"] = app_label
+                    shell_match["editable"] = _is_editable_element(element, states=states)
+                    shell_depth = depth
+            else:
+                if depth > best_depth:
+                    states = _element_states(element)
+                    best_match = _element_summary(
+                        element, path, include_actions=False, include_text=True
+                    )
+                    best_match["application"] = app_label
+                    best_match["editable"] = _is_editable_element(element, states=states)
+                    best_depth = depth
 
-            best_match = _element_summary(element, path, include_actions=False, include_text=True)
-            best_match["application"] = app_label
-            best_match["editable"] = _is_editable_element(element, states=states)
-            best_depth = depth
-
-    return best_match
+    return best_match if best_match is not None else shell_match
 
 
 def _is_menu_like_role(role_name: str) -> bool:
@@ -754,6 +796,66 @@ def set_element_text(element_id: str, text: str) -> JsonDict:
     except Exception as exc:
         return {"success": False, "error": str(exc), "element_id": element_id}
     return {"success": True, "element_id": element_id, "text_length": len(text)}
+
+
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> JsonDict:
+    accessible = _resolve_element(element_id)
+    text_iface = _safe_call(accessible.get_text_iface)
+    if text_iface is None:
+        return {"success": False, "error": "Element does not support the Text interface"}
+
+    states = _element_states(accessible)
+    if "selectable-text" not in states:
+        return {
+            "success": False,
+            "error": "Element does not support text selection (missing selectable-text state)",
+        }
+
+    char_count = _safe_call(text_iface.get_character_count, 0) or 0
+    if char_count <= 0:
+        return {"success": False, "error": "Element has no text content to select"}
+
+    if (start_offset is None) != (end_offset is None):
+        return {
+            "success": False,
+            "error": "Both start_offset and end_offset must be provided, or neither for select-all",
+        }
+
+    if start_offset is None:
+        start_offset = 0
+        end_offset = char_count - 1
+    else:
+        assert end_offset is not None
+        if start_offset > end_offset:
+            start_offset, end_offset = end_offset, start_offset
+        start_offset = max(0, start_offset)
+        end_offset = min(end_offset, char_count - 1)
+
+    if start_offset >= end_offset:
+        return {"success": False, "error": "Empty selection range after clamping"}
+
+    # Clear existing selections
+    n_existing = _safe_call(text_iface.get_n_selections, 0) or 0
+    for _ in range(n_existing):
+        _safe_call(lambda: text_iface.remove_selection(0))
+
+    added = _safe_call(lambda: text_iface.add_selection(start_offset, end_offset), False)
+    if not added:
+        return {"success": False, "error": "AT-SPI add_selection failed"}
+
+    selected_text = _safe_call(lambda: text_iface.get_text(start_offset, end_offset), "")
+    return {
+        "success": True,
+        "element_id": element_id,
+        "character_count": char_count,
+        "selection_start": start_offset,
+        "selection_end": end_offset,
+        "selected_text": selected_text,
+    }
 
 
 def element_at_point(
