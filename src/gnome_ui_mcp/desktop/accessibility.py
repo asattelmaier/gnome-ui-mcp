@@ -368,25 +368,67 @@ def _element_snapshot(element_id: str) -> JsonDict:
     }
 
 
+def _has_active_or_focused_window(app: Atspi.Accessible) -> bool:
+    """Check if an application has at least one ACTIVE or FOCUSED top-level window."""
+    child_count = _safe_call(app.get_child_count, 0) or 0
+    for index in range(child_count):
+        win = _safe_call(lambda idx=index: app.get_child_at_index(idx))
+        if win is None:
+            continue
+        state_set = _safe_call(win.get_state_set)
+        if state_set is None:
+            continue
+        if _safe_call(lambda ss=state_set: ss.contains(Atspi.StateType.ACTIVE), False):
+            return True
+        if _safe_call(lambda ss=state_set: ss.contains(Atspi.StateType.FOCUSED), False):
+            return True
+    return False
+
+
+def _is_focused(accessible: Atspi.Accessible) -> bool:
+    """O(1) check for the FOCUSED state via state_set.contains()."""
+    state_set = _safe_call(accessible.get_state_set)
+    if state_set is None:
+        return False
+    return bool(_safe_call(lambda: state_set.contains(Atspi.StateType.FOCUSED), False))
+
+
 def current_focus_metadata(*, max_depth: int = 16) -> JsonDict | None:
     best_match: JsonDict | None = None
     best_depth = -1
+    shell_match: JsonDict | None = None
+    shell_depth = -1
 
     for app, app_path in _iter_applications():
         app_label = _safe_call(app.get_name, "")
+        if not _has_active_or_focused_window(app):
+            continue
+
+        is_shell = app_label == "gnome-shell"
+
         for element, path, depth in _walk_tree(app, app_path, depth=0, max_depth=max_depth):
-            states = _element_states(element)
-            if "focused" not in states:
+            if not _is_focused(element):
                 continue
-            if depth < best_depth:
-                continue
+            if is_shell:
+                if depth > shell_depth:
+                    states = _element_states(element)
+                    shell_match = _element_summary(
+                        element, path, include_actions=False, include_text=True
+                    )
+                    shell_match["application"] = app_label
+                    shell_match["editable"] = _is_editable_element(element, states=states)
+                    shell_depth = depth
+            else:
+                if depth > best_depth:
+                    states = _element_states(element)
+                    best_match = _element_summary(
+                        element, path, include_actions=False, include_text=True
+                    )
+                    best_match["application"] = app_label
+                    best_match["editable"] = _is_editable_element(element, states=states)
+                    best_depth = depth
 
-            best_match = _element_summary(element, path, include_actions=False, include_text=True)
-            best_match["application"] = app_label
-            best_match["editable"] = _is_editable_element(element, states=states)
-            best_depth = depth
-
-    return best_match
+    return best_match if best_match is not None else shell_match
 
 
 def _is_menu_like_role(role_name: str) -> bool:
