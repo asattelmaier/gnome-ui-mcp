@@ -114,6 +114,20 @@ def click_at(x: int, y: int, button: str = "left") -> JsonDict:
     return interaction.click_at(x=x, y=y, button=button)
 
 
+def scroll(
+    direction: str = "down",
+    clicks: int = 3,
+    x: int | None = None,
+    y: int | None = None,
+) -> JsonDict:
+    return input.perform_scroll(
+        direction=direction,
+        clicks=clicks,
+        x=x,
+        y=y,
+    )
+
+
 def set_element_text(element_id: str, text: str) -> JsonDict:
     return accessibility.set_element_text(element_id=element_id, text=text)
 

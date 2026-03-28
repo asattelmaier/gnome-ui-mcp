@@ -24,6 +24,15 @@ MUTTER_SCREENCAST_PATH = "/org/gnome/Mutter/ScreenCast"
 MUTTER_SCREENCAST_IFACE = "org.gnome.Mutter.ScreenCast"
 MUTTER_SCREENCAST_SESSION_IFACE = "org.gnome.Mutter.ScreenCast.Session"
 REMOTE_POINTER_BUTTONS = {"left": 0x110, "right": 0x111, "middle": 0x112}
+SCROLL_AXIS_VERTICAL = 0
+SCROLL_AXIS_HORIZONTAL = 1
+SCROLL_DIRECTION_MAP: dict[str, tuple[int, int]] = {
+    "up": (SCROLL_AXIS_VERTICAL, -1),
+    "down": (SCROLL_AXIS_VERTICAL, 1),
+    "left": (SCROLL_AXIS_HORIZONTAL, -1),
+    "right": (SCROLL_AXIS_HORIZONTAL, 1),
+}
+SCROLL_BUTTON_MAP = {"up": "b4c", "down": "b5c", "left": "b6c", "right": "b7c"}
 TEXT_KEY_NAME_MAP = {
     "\n": "Return",
     "\r": "Return",
@@ -131,6 +140,47 @@ class _MutterRemoteDesktopInput:
             "text_length": len(text),
             "backend": "mutter-remote-desktop",
             "keyvals": keyvals,
+        }
+
+    def scroll(
+        self,
+        direction: str,
+        clicks: int = 3,
+        x: int | None = None,
+        y: int | None = None,
+    ) -> JsonDict:
+        direction_lower = direction.lower()
+        axis_sign = SCROLL_DIRECTION_MAP.get(direction_lower)
+        if axis_sign is None:
+            msg = "direction must be up, down, left, or right"
+            raise ValueError(msg)
+
+        axis, sign = axis_sign
+        stream_path, stage_area = self._ensure_session()
+
+        if x is not None and y is not None:
+            local_x, local_y = stage_area.local_coordinates(x, y)
+            self._call_session(
+                "NotifyPointerMotionAbsolute",
+                GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
+            )
+            time.sleep(0.02)
+
+        steps = sign * clicks
+        self._call_session(
+            "NotifyPointerAxisDiscrete",
+            GLib.Variant("(ui)", (axis, steps)),
+        )
+
+        return {
+            "success": True,
+            "direction": direction_lower,
+            "clicks": clicks,
+            "axis": axis,
+            "steps": steps,
+            "x": x,
+            "y": y,
+            "backend": "mutter-remote-desktop",
         }
 
     def close(self) -> None:
@@ -381,6 +431,57 @@ def perform_mouse_click(x: int, y: int, *, button: str = "left") -> JsonDict:
         return _REMOTE_INPUT.click_at(x, y, button=button)
     except Exception as exc:
         result = _perform_mouse_click_atspi(x, y, button=button)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_scroll_atspi(
+    direction: str,
+    clicks: int = 3,
+    x: int | None = None,
+    y: int | None = None,
+) -> JsonDict:
+    direction_lower = direction.lower()
+    event_name = SCROLL_BUTTON_MAP.get(direction_lower)
+    if event_name is None:
+        msg = "direction must be up, down, left, or right"
+        raise ValueError(msg)
+
+    if x is not None and y is not None:
+        Atspi.generate_mouse_event(x, y, "abs")
+        time.sleep(0.05)
+
+    for _ in range(clicks):
+        Atspi.generate_mouse_event(0, 0, event_name)
+        time.sleep(0.03)
+
+    return {
+        "success": True,
+        "direction": direction_lower,
+        "clicks": clicks,
+        "x": x,
+        "y": y,
+        "backend": "atspi",
+    }
+
+
+def perform_scroll(
+    direction: str,
+    clicks: int = 3,
+    x: int | None = None,
+    y: int | None = None,
+) -> JsonDict:
+    if clicks <= 0:
+        return {"success": True, "direction": direction.lower(), "clicks": 0, "noop": True}
+
+    if (x is None) != (y is None):
+        msg = "Both x and y must be provided together, or neither"
+        raise ValueError(msg)
+
+    try:
+        return _REMOTE_INPUT.scroll(direction, clicks, x, y)
+    except Exception as exc:
+        result = _perform_scroll_atspi(direction, clicks, x, y)
         result["fallback_error"] = str(exc)
         return result
 

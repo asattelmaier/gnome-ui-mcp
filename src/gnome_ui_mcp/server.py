@@ -196,6 +196,28 @@ def click_at(
     return _run_tool(lambda: backend.click_at(x=x, y=y, button=button))
 
 
+@mcp.tool(
+    description=(
+        "Scroll the mouse wheel at the current pointer position or at given screen "
+        "coordinates. Use direction and clicks for discrete mouse-wheel steps."
+    )
+)
+def scroll(
+    direction: Literal["up", "down", "left", "right"] = "down",
+    clicks: int = 3,
+    x: int | None = None,
+    y: int | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.scroll(
+            direction=direction,
+            clicks=clicks,
+            x=x,
+            y=y,
+        )
+    )
+
+
 @mcp.tool(description="Replace the text contents of an editable element.")
 def set_element_text(element_id: str, text: str) -> CallToolResult:
     return _run_tool(lambda: backend.set_element_text(element_id=element_id, text=text))
