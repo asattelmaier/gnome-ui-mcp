@@ -729,7 +729,10 @@ def focus_element(element_id: str) -> JsonDict:
     if component_iface is None:
         return {"success": False, "error": "Element has no component interface"}
 
-    focused = component_iface.grab_focus()
+    try:
+        focused = component_iface.grab_focus()
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
     return {"success": bool(focused), "element_id": element_id}
 
 
@@ -739,7 +742,10 @@ def set_element_text(element_id: str, text: str) -> JsonDict:
     if editable is None:
         return {"success": False, "error": "Element is not editable"}
 
-    editable.set_text_contents(text)
+    try:
+        editable.set_text_contents(text)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
     return {"success": True, "element_id": element_id, "text_length": len(text)}
 
 
