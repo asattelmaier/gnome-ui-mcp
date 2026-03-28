@@ -507,3 +507,23 @@ def dbus_call(
 )
 def list_monitors() -> CallToolResult:
     return _run_tool(backend.list_monitors)
+
+
+@mcp.tool(description="Switch to a workspace by direction (up or down).")
+def switch_workspace(direction: Literal["up", "down"]) -> CallToolResult:
+    return _run_tool(lambda: backend.switch_workspace(direction=direction))
+
+
+@mcp.tool(description="Move the focused window to another workspace by direction.")
+def move_window_to_workspace(direction: Literal["up", "down"]) -> CallToolResult:
+    return _run_tool(lambda: backend.move_window_to_workspace(direction=direction))
+
+
+@mcp.tool(description="List workspaces and their windows via GNOME Shell Introspect.")
+def list_workspaces() -> CallToolResult:
+    return _run_tool(backend.list_workspaces)
+
+
+@mcp.tool(description="Toggle the GNOME Activities overview on or off.")
+def toggle_overview(active: bool | None = None) -> CallToolResult:
+    return _run_tool(lambda: backend.toggle_overview(active=active))

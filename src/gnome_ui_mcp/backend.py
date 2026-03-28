@@ -5,7 +5,7 @@ import time
 from .desktop import accessibility, input, interaction
 import shutil
 
-from .desktop import accessibility, dbus, display, input, interaction
+from .desktop import accessibility, dbus, display, input, interaction, workspaces
 
 JsonDict = dict[str, object]
 
@@ -345,3 +345,19 @@ def dbus_call(
 
 def list_monitors() -> JsonDict:
     return display.list_monitors()
+
+
+def switch_workspace(direction: str) -> JsonDict:
+    return workspaces.switch_workspace(direction=direction)
+
+
+def move_window_to_workspace(direction: str) -> JsonDict:
+    return workspaces.move_window_to_workspace(direction=direction)
+
+
+def list_workspaces() -> JsonDict:
+    return workspaces.list_workspaces()
+
+
+def toggle_overview(active: bool | None = None) -> JsonDict:
+    return workspaces.toggle_overview(active=active)
