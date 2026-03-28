@@ -605,6 +605,35 @@ def press_key(
     return result
 
 
+def key_combo(
+    combo: str,
+    *,
+    element_id: str | None = None,
+    settle_timeout_ms: int = 1_500,
+    stable_for_ms: int = 250,
+    poll_interval_ms: int = 50,
+) -> JsonDict:
+    before = _effect_context(element_id)
+    combo_result = input.key_combo(combo)
+    result = _verified_result_after_settle(
+        {
+            "method": "key_combo",
+            "combo": combo,
+            "element_id": element_id,
+            "backend": combo_result.get("backend"),
+        },
+        before=before,
+        element_id=element_id,
+        input_injected=bool(combo_result.get("success")),
+        settle_timeout_ms=settle_timeout_ms,
+        stable_for_ms=stable_for_ms,
+        poll_interval_ms=poll_interval_ms,
+    )
+    if combo_result.get("fallback_error"):
+        result["fallback_error"] = combo_result["fallback_error"]
+    return result
+
+
 def click_at(x: int, y: int, button: str = "left") -> JsonDict:
     point_match = accessibility.element_at_point(x=x, y=y, include_click_target=True)
     target_id = accessibility._safe_call(lambda: point_match["match"]["click_target"]["target_id"])

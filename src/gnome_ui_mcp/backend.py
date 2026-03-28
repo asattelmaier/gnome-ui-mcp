@@ -152,6 +152,22 @@ def press_key(
     )
 
 
+def key_combo(
+    combo: str,
+    element_id: str | None = None,
+    settle_timeout_ms: int = 1_500,
+    stable_for_ms: int = 250,
+    poll_interval_ms: int = 50,
+) -> JsonDict:
+    return interaction.key_combo(
+        combo=combo,
+        element_id=element_id,
+        settle_timeout_ms=settle_timeout_ms,
+        stable_for_ms=stable_for_ms,
+        poll_interval_ms=poll_interval_ms,
+    )
+
+
 def screenshot(filename: str | None = None) -> JsonDict:
     return input.screenshot(filename=filename)
 

@@ -252,6 +252,31 @@ def press_key(
     )
 
 
+@mcp.tool(
+    description=(
+        "Send a key combination such as ctrl+c, alt+F4, ctrl+shift+t, or super. "
+        "Modifiers are pressed in order before the principal key and released in "
+        "reverse order after. Optionally verify the effect against a target element."
+    )
+)
+def key_combo(
+    combo: str,
+    element_id: str | None = None,
+    settle_timeout_ms: int = 1_500,
+    stable_for_ms: int = 250,
+    poll_interval_ms: int = 50,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.key_combo(
+            combo=combo,
+            element_id=element_id,
+            settle_timeout_ms=settle_timeout_ms,
+            stable_for_ms=stable_for_ms,
+            poll_interval_ms=poll_interval_ms,
+        )
+    )
+
+
 @mcp.tool(description="Capture the current GNOME desktop to a PNG file.")
 def screenshot(filename: str | None = None) -> CallToolResult:
     return _run_tool(lambda: backend.screenshot(filename=filename))

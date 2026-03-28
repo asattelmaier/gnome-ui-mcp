@@ -40,6 +40,15 @@ TEXT_KEY_NAME_MAP = {
     "\b": "BackSpace",
     "\x1b": "Escape",
 }
+MODIFIER_KEYVALS: dict[str, int] = {
+    "ctrl": Gdk.keyval_from_name("Control_L"),
+    "control": Gdk.keyval_from_name("Control_L"),
+    "shift": Gdk.keyval_from_name("Shift_L"),
+    "alt": Gdk.keyval_from_name("Alt_L"),
+    "super": Gdk.keyval_from_name("Super_L"),
+    "meta": Gdk.keyval_from_name("Meta_L"),
+    "hyper": Gdk.keyval_from_name("Hyper_L"),
+}
 
 
 @dataclass(frozen=True)
@@ -180,6 +189,39 @@ class _MutterRemoteDesktopInput:
             "steps": steps,
             "x": x,
             "y": y,
+            "backend": "mutter-remote-desktop",
+        }
+
+    def press_key_combo(
+        self,
+        modifier_keyvals: list[int],
+        principal_keyval: int | None,
+    ) -> JsonDict:
+        self._ensure_session()
+
+        pressed: list[int] = []
+        for mkv in modifier_keyvals:
+            self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (mkv, True)))
+            pressed.append(mkv)
+
+        if principal_keyval is not None:
+            time.sleep(0.01)
+            self._call_session(
+                "NotifyKeyboardKeysym", GLib.Variant("(ub)", (principal_keyval, True))
+            )
+            self._call_session(
+                "NotifyKeyboardKeysym", GLib.Variant("(ub)", (principal_keyval, False))
+            )
+        else:
+            time.sleep(0.05)
+
+        for mkv in reversed(pressed):
+            self._call_session("NotifyKeyboardKeysym", GLib.Variant("(ub)", (mkv, False)))
+
+        return {
+            "success": True,
+            "modifier_keyvals": modifier_keyvals,
+            "principal_keyval": principal_keyval,
             "backend": "mutter-remote-desktop",
         }
 
@@ -511,6 +553,88 @@ def press_key(key_name: str) -> JsonDict:
         return _REMOTE_INPUT.press_key(key_name)
     except Exception as exc:
         result = _perform_key_press_atspi(key_name)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _validate_modifiers(names: list[str]) -> list[int]:
+    keyvals: list[int] = []
+    seen: set[int] = set()
+    for name in names:
+        kv = MODIFIER_KEYVALS.get(name.strip().lower())
+        if kv is None:
+            valid = ", ".join(sorted({k for k in MODIFIER_KEYVALS if k != "control"}))
+            msg = f"Unknown modifier {name!r}. Valid modifiers: {valid}"
+            raise ValueError(msg)
+        if kv not in seen:
+            keyvals.append(kv)
+            seen.add(kv)
+    return keyvals
+
+
+def _parse_key_combo(combo: str) -> tuple[list[int], int | None]:
+    if not combo or not combo.strip():
+        msg = "Key combination string must not be empty"
+        raise ValueError(msg)
+
+    tokens = [t.strip() for t in combo.split("+") if t.strip()]
+    if not tokens:
+        msg = "Key combination string must contain at least one key"
+        raise ValueError(msg)
+
+    modifier_keyvals: list[int] = []
+    seen: set[int] = set()
+    principal_keyval: int | None = None
+
+    for i, token in enumerate(tokens):
+        kv = MODIFIER_KEYVALS.get(token.lower())
+        if kv is not None:
+            if kv not in seen:
+                modifier_keyvals.append(kv)
+                seen.add(kv)
+        else:
+            if i != len(tokens) - 1:
+                msg = f"Non-modifier key {token!r} must be the last token in the combination"
+                raise ValueError(msg)
+            principal_keyval = _key_name_to_keyval(token)
+
+    return modifier_keyvals, principal_keyval
+
+
+def _perform_key_combo_atspi(
+    modifier_keyvals: list[int],
+    principal_keyval: int | None,
+) -> JsonDict:
+    try:
+        for mkv in modifier_keyvals:
+            Atspi.generate_keyboard_event(mkv, "", Atspi.KeySynthType.PRESS)
+
+        if principal_keyval is not None:
+            time.sleep(0.01)
+            Atspi.generate_keyboard_event(principal_keyval, "", Atspi.KeySynthType.PRESS)
+            Atspi.generate_keyboard_event(principal_keyval, "", Atspi.KeySynthType.RELEASE)
+        else:
+            time.sleep(0.05)
+
+        for mkv in reversed(modifier_keyvals):
+            Atspi.generate_keyboard_event(mkv, "", Atspi.KeySynthType.RELEASE)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "backend": "atspi"}
+
+    return {
+        "success": True,
+        "modifier_keyvals": modifier_keyvals,
+        "principal_keyval": principal_keyval,
+        "backend": "atspi",
+    }
+
+
+def key_combo(combo: str) -> JsonDict:
+    modifier_keyvals, principal_keyval = _parse_key_combo(combo)
+    try:
+        return _REMOTE_INPUT.press_key_combo(modifier_keyvals, principal_keyval)
+    except Exception as exc:
+        result = _perform_key_combo_atspi(modifier_keyvals, principal_keyval)
         result["fallback_error"] = str(exc)
         return result
 
