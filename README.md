@@ -24,7 +24,7 @@ The recommended way to run the server is via the published GHCR image:
 ghcr.io/asattelmaier/gnome-ui-mcp:latest
 ```
 
-`latest` is published from `main`. Version tags such as `v0.1.0` publish matching image tags as well.
+`latest` tracks the most recent release. Version tags such as `v0.1.0` publish matching image tags as well.
 
 ## Docker setup
 
