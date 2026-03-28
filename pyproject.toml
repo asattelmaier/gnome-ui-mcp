@@ -27,20 +27,6 @@ dependencies = [
   "mcp>=1.26.0,<2",
 ]
 
-[project.optional-dependencies]
-hidpi = [
-  "Pillow>=10.0",
-]
-ocr = [
-  "pytesseract>=0.3",
-  "Pillow>=10.0",
-]
-visual = [
-  "numpy>=1.26",
-  "scipy>=1.12",
-  "Pillow>=10.0",
-]
-
 [project.urls]
 Homepage = "https://github.com/asattelmaier/gnome-ui-mcp"
 Repository = "https://github.com/asattelmaier/gnome-ui-mcp"
@@ -79,8 +65,3 @@ select = ["B", "E", "F", "I", "UP", "W"]
 [tool.ruff.lint.per-file-ignores]
 "src/gnome_ui_mcp/runtime/gi_env.py" = ["E402", "I001"]
 "scripts/smoke_test_app.py" = ["E402", "I001"]
-"tests/test_ocr.py" = ["E402"]
-"tests/test_pixel_and_diff.py" = ["E402"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
