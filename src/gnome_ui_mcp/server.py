@@ -239,6 +239,26 @@ def set_element_text(element_id: str, text: str) -> CallToolResult:
     return _run_tool(lambda: backend.set_element_text(element_id=element_id, text=text))
 
 
+@mcp.tool(
+    description=(
+        "Select text within an element using the AT-SPI Text interface. "
+        "Provide start_offset and end_offset for a range, or omit both to select all text."
+    )
+)
+def select_element_text(
+    element_id: str,
+    start_offset: int | None = None,
+    end_offset: int | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.select_element_text(
+            element_id=element_id,
+            start_offset=start_offset,
+            end_offset=end_offset,
+        )
+    )
+
+
 @mcp.tool(description="Type text into the currently focused element.")
 def type_text(text: str) -> CallToolResult:
     return _run_tool(lambda: backend.type_text(text=text))
