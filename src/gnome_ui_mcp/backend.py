@@ -596,6 +596,16 @@ def compare_screenshots(
 # Phase 7a: Deep AT-SPI query tools
 
 
+def dismiss_notification(notification_id: int) -> JsonDict:
+    return notifications.dismiss_notification(notification_id=notification_id)
+
+
+def click_notification_action(notification_id: int, action_key: str) -> JsonDict:
+    return notifications.click_notification_action(
+        notification_id=notification_id, action_key=action_key
+    )
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 

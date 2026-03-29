@@ -109,3 +109,62 @@ def notification_monitor_read(clear: bool = True) -> JsonDict:
 
 def notification_monitor_stop() -> JsonDict:
     return _MONITOR.stop()
+
+
+def dismiss_notification(notification_id: int) -> JsonDict:
+    """Dismiss a notification by calling CloseNotification via D-Bus."""
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        bus.call_sync(
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            "CloseNotification",
+            GLib.Variant("(u)", (notification_id,)),
+            None,
+            Gio.DBusCallFlags.NONE,
+            5000,
+            None,
+        )
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "notification_id": notification_id,
+        }
+
+    return {
+        "success": True,
+        "notification_id": notification_id,
+        "action": "dismissed",
+    }
+
+
+def click_notification_action(notification_id: int, action_key: str) -> JsonDict:
+    """Invoke a notification action by emitting ActionInvoked via D-Bus."""
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        bus.call_sync(
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            "ActionInvoked",
+            GLib.Variant("(us)", (notification_id, action_key)),
+            None,
+            Gio.DBusCallFlags.NONE,
+            5000,
+            None,
+        )
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "notification_id": notification_id,
+            "action_key": action_key,
+        }
+
+    return {
+        "success": True,
+        "notification_id": notification_id,
+        "action_key": action_key,
+    }
