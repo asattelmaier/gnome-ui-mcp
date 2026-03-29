@@ -140,19 +140,20 @@ def dismiss_notification(notification_id: int) -> JsonDict:
 
 
 def click_notification_action(notification_id: int, action_key: str) -> JsonDict:
-    """Invoke a notification action by emitting ActionInvoked via D-Bus."""
+    """Invoke a notification action by emitting the ActionInvoked D-Bus signal.
+
+    ActionInvoked is a *signal*, not a method, so we broadcast it with
+    ``emit_signal`` rather than ``call_sync``.  This is best-effort --
+    GNOME Shell may handle some actions internally and ignore the signal.
+    """
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        bus.call_sync(
-            "org.freedesktop.Notifications",
+        bus.emit_signal(
+            None,  # destination (broadcast)
             "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications",
             "ActionInvoked",
             GLib.Variant("(us)", (notification_id, action_key)),
-            None,
-            Gio.DBusCallFlags.NONE,
-            5000,
-            None,
         )
     except Exception as exc:
         return {
