@@ -488,6 +488,16 @@ def wait_for_element_gone(
     )
 
 
+@mcp.tool(
+    description=(
+        "Set a file path in a GTK file dialog by sending Ctrl+L to activate the "
+        "location entry, typing the path, and pressing Return."
+    )
+)
+def file_dialog_set_path(path: str) -> CallToolResult:
+    return _run_tool(lambda: backend.file_dialog_set_path(path=path))
+
+
 @mcp.tool(description="Return metadata about the currently focused element.")
 def get_focused_element() -> CallToolResult:
     return _run_tool(backend.get_focused_element)

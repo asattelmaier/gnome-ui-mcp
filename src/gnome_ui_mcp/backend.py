@@ -12,6 +12,7 @@ from .desktop import (
     dbus,
     display,
     events,
+    file_dialog,
     gsettings,
     highlight,
     history,
@@ -594,6 +595,10 @@ def compare_screenshots(
 
 
 # Phase 7a: Deep AT-SPI query tools
+
+
+def file_dialog_set_path(path: str) -> JsonDict:
+    return file_dialog.file_dialog_set_path(path=path)
 
 
 def get_focused_element() -> JsonDict:
