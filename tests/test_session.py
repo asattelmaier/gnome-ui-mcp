@@ -19,8 +19,14 @@ class TestSessionStart:
         mock_proc.stderr.fileno.return_value = 3
 
         with (
-            patch("gnome_ui_mcp.desktop.session.shutil.which", return_value="/usr/bin/gnome-shell"),
-            patch("gnome_ui_mcp.desktop.session.subprocess.Popen", return_value=mock_proc) as mock_popen,
+            patch(
+                "gnome_ui_mcp.desktop.session.shutil.which",
+                return_value="/usr/bin/gnome-shell",
+            ),
+            patch(
+                "gnome_ui_mcp.desktop.session.subprocess.Popen",
+                return_value=mock_proc,
+            ) as mock_popen,
             patch.object(session_mod, "_wait_for_shell_ready", return_value=True),
             patch.object(
                 session_mod,
@@ -45,8 +51,14 @@ class TestSessionStart:
         mock_proc.stderr.fileno.return_value = 3
 
         with (
-            patch("gnome_ui_mcp.desktop.session.shutil.which", return_value="/usr/bin/gnome-shell"),
-            patch("gnome_ui_mcp.desktop.session.subprocess.Popen", return_value=mock_proc),
+            patch(
+                "gnome_ui_mcp.desktop.session.shutil.which",
+                return_value="/usr/bin/gnome-shell",
+            ),
+            patch(
+                "gnome_ui_mcp.desktop.session.subprocess.Popen",
+                return_value=mock_proc,
+            ),
             patch.object(session_mod, "_wait_for_shell_ready", return_value=True),
             patch.object(
                 session_mod,
