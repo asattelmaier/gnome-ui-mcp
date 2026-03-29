@@ -739,6 +739,17 @@ def find_elements(
                 continue
 
             element_id = _path_to_id(path)
+
+            # Apply text/role filters before expensive click target resolution.
+            haystack = " ".join([app_label, name, description, role_name]).casefold()
+            if filt.query and filt.query.casefold() not in haystack:
+                continue
+            if role_query and role_query not in role_name.casefold():
+                continue
+
+            # Resolve click target (expensive O(D) walk) only for elements that
+            # passed all filters above.  When clickable_only is set, the result
+            # is also used to decide whether to include the element.
             try:
                 click_target = _resolve_click_target_metadata(element_id)
             except Exception:
@@ -751,12 +762,6 @@ def find_elements(
                 and click_target is not None
                 and click_target["target_id"] != element_id
             ):
-                continue
-
-            haystack = " ".join([app_label, name, description, role_name]).casefold()
-            if filt.query and filt.query.casefold() not in haystack:
-                continue
-            if role_query and role_query not in role_name.casefold():
                 continue
 
             item = _element_summary(element, path, include_actions=True, include_text=True)
