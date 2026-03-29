@@ -244,6 +244,30 @@ def mouse_move(x: int, y: int) -> CallToolResult:
     return _run_tool(lambda: backend.mouse_move(x=x, y=y))
 
 
+@mcp.tool(
+    description=(
+        "Smoothly move the mouse cursor from one position to another over a given duration. "
+        "Interpolates intermediate positions for natural-looking movement."
+    )
+)
+def mouse_move_smooth(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 300,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.mouse_move_smooth(
+            start_x=start_x,
+            start_y=start_y,
+            end_x=end_x,
+            end_y=end_y,
+            duration_ms=duration_ms,
+        )
+    )
+
+
 @mcp.tool(description="Replace the text contents of an editable element.")
 def set_element_text(element_id: str, text: str) -> CallToolResult:
     return _run_tool(lambda: backend.set_element_text(element_id=element_id, text=text))

@@ -170,6 +170,54 @@ class _MutterRemoteDesktopInput:
             "stream_path": stream_path,
         }
 
+    def move_to_smooth(
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        *,
+        duration_ms: int = 300,
+        steps: int = 20,
+    ) -> JsonDict:
+        stream_path, stage_area = self._ensure_session()
+        start_lx, start_ly = stage_area.local_coordinates(start_x, start_y)
+        end_lx, end_ly = stage_area.local_coordinates(end_x, end_y)
+
+        actual_steps = max(1, steps)
+        start_time = time.monotonic()
+
+        self._call_session(
+            "NotifyPointerMotionAbsolute",
+            GLib.Variant("(sdd)", (stream_path, start_lx, start_ly)),
+        )
+
+        for i in range(1, actual_steps + 1):
+            frac = i / actual_steps
+            ix = start_lx + frac * (end_lx - start_lx)
+            iy = start_ly + frac * (end_ly - start_ly)
+            self._call_session(
+                "NotifyPointerMotionAbsolute",
+                GLib.Variant("(sdd)", (stream_path, ix, iy)),
+            )
+            if duration_ms > 0:
+                target = start_time + (duration_ms / 1000) * i / actual_steps
+                remaining = target - time.monotonic()
+                if remaining > 0:
+                    time.sleep(remaining)
+
+        return {
+            "success": True,
+            "start_x": start_x,
+            "start_y": start_y,
+            "end_x": end_x,
+            "end_y": end_y,
+            "duration_ms": duration_ms,
+            "steps": actual_steps,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
     def drag_to(
         self,
         start_x: int,
@@ -797,6 +845,57 @@ def perform_mouse_move(x: int, y: int) -> JsonDict:
         return _REMOTE_INPUT.move_to(x, y)
     except Exception as exc:
         result = _perform_mouse_move_atspi(x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_mouse_move_smooth_atspi(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    duration_ms: int = 300,
+    steps: int = 20,
+) -> JsonDict:
+    actual_steps = max(1, steps)
+    start_time = time.monotonic()
+    Atspi.generate_mouse_event(start_x, start_y, "abs")
+    for i in range(1, actual_steps + 1):
+        frac = i / actual_steps
+        ix = int(start_x + frac * (end_x - start_x))
+        iy = int(start_y + frac * (end_y - start_y))
+        Atspi.generate_mouse_event(ix, iy, "abs")
+        if duration_ms > 0:
+            target = start_time + (duration_ms / 1000) * i / actual_steps
+            remaining = target - time.monotonic()
+            if remaining > 0:
+                time.sleep(remaining)
+    return {
+        "success": True,
+        "start_x": start_x,
+        "start_y": start_y,
+        "end_x": end_x,
+        "end_y": end_y,
+        "duration_ms": duration_ms,
+        "steps": actual_steps,
+        "backend": "atspi",
+    }
+
+
+def mouse_move_smooth(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 300,
+) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.move_to_smooth(start_x, start_y, end_x, end_y, duration_ms=duration_ms)
+    except Exception as exc:
+        result = _perform_mouse_move_smooth_atspi(
+            start_x, start_y, end_x, end_y, duration_ms=duration_ms
+        )
         result["fallback_error"] = str(exc)
         return result
 
