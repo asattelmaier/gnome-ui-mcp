@@ -488,6 +488,19 @@ def wait_for_element_gone(
     )
 
 
+@mcp.tool(
+    description=(
+        "Navigate a menu hierarchy by sequentially activating each item in the path. "
+        "Waits for sub-menus to appear between levels."
+    )
+)
+def navigate_menu(
+    menu_path: list[str],
+    app_name: str | None = None,
+) -> CallToolResult:
+    return _run_tool(lambda: backend.navigate_menu(menu_path=menu_path, app_name=app_name))
+
+
 @mcp.tool(description="Return metadata about the currently focused element.")
 def get_focused_element() -> CallToolResult:
     return _run_tool(backend.get_focused_element)

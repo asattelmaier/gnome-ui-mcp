@@ -596,6 +596,13 @@ def compare_screenshots(
 # Phase 7a: Deep AT-SPI query tools
 
 
+def navigate_menu(
+    menu_path: list[str],
+    app_name: str | None = None,
+) -> JsonDict:
+    return interaction.navigate_menu(menu_path=menu_path, app_name=app_name)
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 

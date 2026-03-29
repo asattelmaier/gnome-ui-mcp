@@ -693,3 +693,49 @@ def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> Json
         effect_verified=verified,
         verification=verification,
     )
+
+
+def navigate_menu(
+    menu_path: list[str],
+    *,
+    app_name: str | None = None,
+) -> JsonDict:
+    """Navigate a menu hierarchy by sequentially activating items."""
+    if not menu_path:
+        return {"success": False, "error": "Menu path must not be empty"}
+
+    activated_items: list[JsonDict] = []
+
+    for i, item_name in enumerate(menu_path):
+        within_popup = i > 0
+        result = find_and_activate(
+            query=item_name,
+            app_name=app_name,
+            within_popup=within_popup,
+        )
+        if not result.get("success"):
+            return {
+                "success": False,
+                "error": f"Menu item not found: {item_name}",
+                "menu_path": menu_path,
+                "activated_items": activated_items,
+                "failed_at_index": i,
+            }
+
+        activated_items.append(result)
+
+        # Wait for sub-menu to appear if there are more items
+        if i < len(menu_path) - 1:
+            accessibility.wait_for_element(
+                query=menu_path[i + 1],
+                within_popup=True,
+                timeout_ms=3000,
+                poll_interval_ms=100,
+            )
+
+    return {
+        "success": True,
+        "menu_path": menu_path,
+        "activated_items": activated_items,
+        "final_item": activated_items[-1] if activated_items else None,
+    }
