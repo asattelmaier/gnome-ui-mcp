@@ -596,6 +596,14 @@ def compare_screenshots(
 # Phase 7a: Deep AT-SPI query tools
 
 
+def expand_node(element_id: str) -> JsonDict:
+    return accessibility.expand_node(element_id=element_id)
+
+
+def collapse_node(element_id: str) -> JsonDict:
+    return accessibility.collapse_node(element_id=element_id)
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 
