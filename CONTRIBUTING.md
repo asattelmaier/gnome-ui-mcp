@@ -25,7 +25,8 @@ uv run --active gnome-ui-mcp
 1. Create a focused branch.
 2. Keep changes scoped and documented.
 3. Update the README when the public MCP surface changes.
-4. Run `./scripts/check.sh` before opening the PR.
+4. If adding new tools, update the `_infer_tag()` mapping in `scripts/generate_docs.py` to assign them to a documentation category.
+5. Run `./scripts/check.sh` before opening the PR.
 
 ## Releasing
 
@@ -46,5 +47,6 @@ Pushing the `v*` tag triggers the release workflow which:
 
 - Verifies the build and runs tests
 - Builds and pushes the Docker image to GHCR (versioned + `latest`)
+- Generates and deploys API documentation to GitHub Pages
 - Creates a GitHub Release with an auto-generated changelog
 - Publishes the server metadata to the MCP Registry

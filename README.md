@@ -98,6 +98,10 @@ docker compose run --rm gnome-ui-mcp
 }
 ```
 
+## API Documentation
+
+Complete tool reference available at [https://asattelmaier.github.io/gnome-ui-mcp/](https://asattelmaier.github.io/gnome-ui-mcp/)
+
 ## Security
 
 This server can inspect and control the active desktop session. Use it only with trusted MCP clients.
