@@ -5,6 +5,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+
+PIL = pytest.importorskip("PIL", reason="Pillow not installed")
 from PIL import Image
 
 from gnome_ui_mcp.desktop import ocr as ocr_mod
