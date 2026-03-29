@@ -600,6 +600,10 @@ def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 
 
+def set_element_value(element_id: str, value: float) -> JsonDict:
+    return accessibility.set_element_value(element_id=element_id, value=value)
+
+
 def get_element_properties(element_id: str) -> JsonDict:
     return accessibility.get_element_properties(element_id=element_id)
 

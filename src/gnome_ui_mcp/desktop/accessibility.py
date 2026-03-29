@@ -1103,6 +1103,41 @@ def get_focused_element(*, max_depth: int = 16) -> JsonDict:
 # ---------------------------------------------------------------------------
 
 
+def set_element_value(element_id: str, value: float) -> JsonDict:
+    """Set the value of a slider, spinbutton, or progress bar via AT-SPI Value."""
+    accessible = _resolve_element(element_id)
+    value_iface = _safe_call(accessible.get_value_iface)
+    if value_iface is None:
+        return {
+            "success": False,
+            "error": "Element does not support the Value interface",
+            "element_id": element_id,
+        }
+
+    min_val = _safe_call(value_iface.get_minimum_value, 0.0)
+    max_val = _safe_call(value_iface.get_maximum_value, 100.0)
+
+    if value < min_val or value > max_val:
+        return {
+            "success": False,
+            "error": f"Value {value} out of range [{min_val}, {max_val}]",
+            "element_id": element_id,
+            "min": min_val,
+            "max": max_val,
+        }
+
+    result = value_iface.set_current_value(value)
+    current = _safe_call(value_iface.get_current_value, value)
+
+    return {
+        "success": bool(result),
+        "element_id": element_id,
+        "current_value": current,
+        "min": min_val,
+        "max": max_val,
+    }
+
+
 def get_element_properties(element_id: str) -> JsonDict:
     """Return extended AT-SPI properties for an element."""
     accessible = _resolve_element(element_id)
