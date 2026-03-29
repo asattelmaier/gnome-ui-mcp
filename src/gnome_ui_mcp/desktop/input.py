@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import atexit
+import os
+import shutil
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -941,3 +944,70 @@ def screenshot_window(
         "mode": "window",
         "include_frame": include_frame,
     }
+
+
+def _child_process_env() -> dict[str, str]:
+    env: dict[str, str] = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(Path.home()),
+    }
+    for key in ("DBUS_SESSION_BUS_ADDRESS", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
+
+
+_VALID_SELECTIONS = ("clipboard", "primary")
+
+
+def clipboard_read(selection: str = "clipboard") -> JsonDict:
+    if selection not in _VALID_SELECTIONS:
+        msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
+        raise ValueError(msg)
+
+    if not shutil.which("wl-paste"):
+        return {"success": False, "error": "wl-paste not found (install wl-clipboard)"}
+
+    cmd = ["wl-paste", "--no-newline", "--type", "text/plain"]
+    if selection == "primary":
+        cmd.append("--primary")
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=False, env=_child_process_env(), timeout=5
+    )
+    if result.returncode != 0:
+        return {"success": True, "text": None, "selection": selection}
+
+    return {"success": True, "text": result.stdout, "selection": selection}
+
+
+def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
+    if selection not in _VALID_SELECTIONS:
+        msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
+        raise ValueError(msg)
+
+    if not shutil.which("wl-copy"):
+        return {"success": False, "error": "wl-copy not found (install wl-clipboard)"}
+
+    cmd = ["wl-copy", "--"]
+    if selection == "primary":
+        cmd.insert(1, "--primary")
+
+    result = subprocess.run(
+        cmd,
+        input=text,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_child_process_env(),
+        timeout=5,
+    )
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": result.stderr.strip() or "wl-copy failed",
+            "selection": selection,
+        }
+
+    return {"success": True, "text_length": len(text), "selection": selection}
