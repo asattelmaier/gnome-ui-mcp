@@ -15,6 +15,7 @@ try:
 
     _HAS_PIL = True
 except ImportError:
+    Image = None  # type: ignore
     _HAS_PIL = False
 
 from ..runtime.gi_env import Atspi, Gdk, Gio, GLib
