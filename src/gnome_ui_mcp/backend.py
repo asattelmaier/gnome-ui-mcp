@@ -4,6 +4,7 @@ import time
 
 from .desktop import (
     accessibility,
+    app_lifecycle,
     app_log,
     app_wait,
     apps,
@@ -788,3 +789,14 @@ def session_stop() -> JsonDict:
 
 def session_info() -> JsonDict:
     return session.session_info()
+
+
+# App lifecycle
+
+
+def close_app(app_name: str) -> JsonDict:
+    return app_lifecycle.close_app(app_name=app_name)
+
+
+def kill_app(app_name: str) -> JsonDict:
+    return app_lifecycle.kill_app(app_name=app_name)
