@@ -1244,7 +1244,10 @@ def _child_process_env() -> dict[str, str]:
 _VALID_SELECTIONS = ("clipboard", "primary")
 
 
-def clipboard_read(selection: str = "clipboard") -> JsonDict:
+def clipboard_read(
+    selection: str = "clipboard",
+    mime_type: str = "text/plain",
+) -> JsonDict:
     if selection not in _VALID_SELECTIONS:
         msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
         raise ValueError(msg)
@@ -1252,20 +1255,52 @@ def clipboard_read(selection: str = "clipboard") -> JsonDict:
     if not shutil.which("wl-paste"):
         return {"success": False, "error": "wl-paste not found (install wl-clipboard)"}
 
-    cmd = ["wl-paste", "--no-newline", "--type", "text/plain"]
+    cmd = ["wl-paste", "--no-newline", "--type", mime_type]
     if selection == "primary":
         cmd.append("--primary")
 
+    is_text = mime_type.startswith("text/")
+
     result = subprocess.run(
-        cmd, capture_output=True, text=True, check=False, env=_child_process_env(), timeout=5
+        cmd,
+        capture_output=True,
+        text=is_text,
+        check=False,
+        env=_child_process_env(),
+        timeout=5,
     )
     if result.returncode != 0:
-        return {"success": True, "text": None, "selection": selection}
+        return {
+            "success": True,
+            "text": None,
+            "selection": selection,
+            "mime_type": mime_type,
+        }
 
-    return {"success": True, "text": result.stdout, "selection": selection}
+    if is_text:
+        return {
+            "success": True,
+            "text": result.stdout,
+            "selection": selection,
+            "mime_type": mime_type,
+        }
+
+    import base64 as _base64
+
+    return {
+        "success": True,
+        "data_base64": _base64.b64encode(result.stdout).decode("ascii"),
+        "data_length": len(result.stdout),
+        "selection": selection,
+        "mime_type": mime_type,
+    }
 
 
-def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
+def clipboard_write(
+    text: str,
+    selection: str = "clipboard",
+    mime_type: str = "text/plain",
+) -> JsonDict:
     if selection not in _VALID_SELECTIONS:
         msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
         raise ValueError(msg)
@@ -1273,24 +1308,43 @@ def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
     if not shutil.which("wl-copy"):
         return {"success": False, "error": "wl-copy not found (install wl-clipboard)"}
 
-    cmd = ["wl-copy", "--"]
+    cmd = ["wl-copy", "--type", mime_type, "--"]
     if selection == "primary":
         cmd.insert(1, "--primary")
 
+    is_text = mime_type.startswith("text/")
+
+    if is_text:
+        input_data: str | bytes = text
+    else:
+        import base64 as _base64
+
+        try:
+            input_data = _base64.b64decode(text)
+        except Exception:
+            input_data = text.encode("utf-8")
+
     result = subprocess.run(
         cmd,
-        input=text,
+        input=input_data,
         capture_output=True,
-        text=True,
+        text=is_text,
         check=False,
         env=_child_process_env(),
         timeout=5,
     )
     if result.returncode != 0:
+        stderr = result.stderr if isinstance(result.stderr, str) else result.stderr.decode()
         return {
             "success": False,
-            "error": result.stderr.strip() or "wl-copy failed",
+            "error": stderr.strip() or "wl-copy failed",
             "selection": selection,
+            "mime_type": mime_type,
         }
 
-    return {"success": True, "text_length": len(text), "selection": selection}
+    return {
+        "success": True,
+        "text_length": len(text),
+        "selection": selection,
+        "mime_type": mime_type,
+    }

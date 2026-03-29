@@ -192,12 +192,19 @@ def drag(
     )
 
 
-def clipboard_read(selection: str = "clipboard") -> JsonDict:
-    return input.clipboard_read(selection=selection)
+def clipboard_read(
+    selection: str = "clipboard",
+    mime_type: str = "text/plain",
+) -> JsonDict:
+    return input.clipboard_read(selection=selection, mime_type=mime_type)
 
 
-def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
-    return input.clipboard_write(text=text, selection=selection)
+def clipboard_write(
+    text: str,
+    selection: str = "clipboard",
+    mime_type: str = "text/plain",
+) -> JsonDict:
+    return input.clipboard_write(text=text, selection=selection, mime_type=mime_type)
 
 
 def mouse_move(x: int, y: int) -> JsonDict:
