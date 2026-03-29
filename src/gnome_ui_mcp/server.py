@@ -250,6 +250,16 @@ def set_element_text(element_id: str, text: str) -> CallToolResult:
 
 @mcp.tool(
     description=(
+        "Set the numeric value of a slider, spinbutton, or progress bar "
+        "via the AT-SPI Value interface."
+    )
+)
+def set_element_value(element_id: str, value: float) -> CallToolResult:
+    return _run_tool(lambda: backend.set_element_value(element_id=element_id, value=value))
+
+
+@mcp.tool(
+    description=(
         "Select text within an element using the AT-SPI Text interface. "
         "Provide start_offset and end_offset for a range, or omit both to select all text."
     )
