@@ -1277,20 +1277,18 @@ def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
     if selection == "primary":
         cmd.insert(1, "--primary")
 
-    result = subprocess.run(
-        cmd,
-        input=text,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=_child_process_env(),
-        timeout=5,
-    )
-    if result.returncode != 0:
-        return {
-            "success": False,
-            "error": result.stderr.strip() or "wl-copy failed",
-            "selection": selection,
-        }
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_child_process_env(),
+        )
+        if proc.stdin is not None:
+            proc.stdin.write(text.encode())
+            proc.stdin.close()
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "selection": selection}
 
     return {"success": True, "text_length": len(text), "selection": selection}
