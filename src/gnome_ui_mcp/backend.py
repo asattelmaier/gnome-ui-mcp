@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction
+from .desktop import accessibility, input, interaction, session
 
 JsonDict = dict[str, object]
 
@@ -318,3 +318,15 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+
+def session_start(width: int = 1920, height: int = 1080) -> JsonDict:
+    return session.session_start(width=width, height=height)
+
+
+def session_stop() -> JsonDict:
+    return session.session_stop()
+
+
+def session_info() -> JsonDict:
+    return session.session_info()
