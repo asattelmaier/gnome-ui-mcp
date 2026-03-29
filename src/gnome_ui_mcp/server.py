@@ -52,13 +52,19 @@ def list_windows(app_name: str | None = None) -> CallToolResult:
 
 
 @mcp.tool(
-    description="Return the accessibility tree for the whole desktop or a specific application."
+    description=(
+        "Return the accessibility tree for the whole desktop or a specific application. "
+        "Optionally filter by roles, states, or showing-only."
+    )
 )
 def accessibility_tree(
     app_name: str | None = None,
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.accessibility_tree(
@@ -66,6 +72,9 @@ def accessibility_tree(
             max_depth=max_depth,
             include_actions=include_actions,
             include_text=include_text,
+            filter_roles=filter_roles,
+            filter_states=filter_states,
+            showing_only=showing_only,
         )
     )
 
@@ -226,65 +235,12 @@ def scroll(
 
 @mcp.tool(
     description=(
-        "Drag from one screen position to another by pressing a mouse button, "
-        "moving through intermediate positions, and releasing."
-    )
-)
-def drag(
-    start_x: int,
-    start_y: int,
-    end_x: int,
-    end_y: int,
-    button: Literal["left", "middle", "right"] = "left",
-    steps: int = 10,
-    duration_ms: int = 300,
-) -> CallToolResult:
-    return _run_tool(
-        lambda: backend.drag(
-            start_x=start_x,
-            start_y=start_y,
-            end_x=end_x,
-            end_y=end_y,
-            button=button,
-            steps=steps,
-            duration_ms=duration_ms,
-        )
-    )
-
-
-@mcp.tool(description="Read text from the system clipboard or primary selection.")
-def clipboard_read(
-    selection: Literal["clipboard", "primary"] = "clipboard",
-) -> CallToolResult:
-    return _run_tool(lambda: backend.clipboard_read(selection=selection))
-
-
-@mcp.tool(description="Write text to the system clipboard or primary selection.")
-def clipboard_write(
-    text: str,
-    selection: Literal["clipboard", "primary"] = "clipboard",
-) -> CallToolResult:
-    return _run_tool(lambda: backend.clipboard_write(text=text, selection=selection))
-
-
-@mcp.tool(
-    description=(
         "Move the mouse cursor to absolute screen coordinates without clicking. "
         "Useful for hover effects, tooltips, and drag preparation."
     )
 )
 def mouse_move(x: int, y: int) -> CallToolResult:
     return _run_tool(lambda: backend.mouse_move(x=x, y=y))
-
-
-@mcp.tool(
-    description=(
-        "Move the mouse cursor to the center of an element without clicking. "
-        "Useful for triggering hover effects, tooltips, and submenus."
-    )
-)
-def hover_element(element_id: str) -> CallToolResult:
-    return _run_tool(lambda: backend.hover_element(element_id=element_id))
 
 
 @mcp.tool(description="Replace the text contents of an editable element.")
@@ -366,28 +322,9 @@ def key_combo(
     )
 
 
-@mcp.tool(
-    description=(
-        "Capture the current GNOME desktop. Returns path, scale factor, "
-        "pixel size, and logical size. Supports JPEG output and resize."
-    )
-)
-def screenshot(
-    filename: str | None = None,
-    output_format: str | None = None,
-    quality: int = 85,
-    max_width: int | None = None,
-    scale_to_logical: bool = False,
-) -> CallToolResult:
-    return _run_tool(
-        lambda: backend.screenshot(
-            filename=filename,
-            output_format=output_format,
-            quality=quality,
-            max_width=max_width,
-            scale_to_logical=scale_to_logical,
-        )
-    )
+@mcp.tool(description="Capture the current GNOME desktop to a PNG file.")
+def screenshot(filename: str | None = None) -> CallToolResult:
+    return _run_tool(lambda: backend.screenshot(filename=filename))
 
 
 @mcp.tool(description="Capture a rectangular region of the screen to a PNG file.")
@@ -551,304 +488,283 @@ def wait_for_element_gone(
     )
 
 
+@mcp.tool(description="Return metadata about the currently focused element.")
+def get_focused_element() -> CallToolResult:
+    return _run_tool(backend.get_focused_element)
+
+
 @mcp.tool(
     description=(
-        "Extract text from the screen or a region using OCR. Use for apps with poor accessibility."
+        "Return extended AT-SPI properties for an element: value, selection, "
+        "relations, attributes, and image info."
     )
 )
-def ocr_screen(
-    x: int | None = None,
-    y: int | None = None,
-    width: int | None = None,
-    height: int | None = None,
-) -> CallToolResult:
-    return _run_tool(lambda: backend.ocr_screen(x=x, y=y, width=width, height=height))
+def get_element_properties(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_properties(element_id=element_id))
 
 
-@mcp.tool(description="Find text on screen via OCR and return its coordinates.")
-def find_text_ocr(
-    target: str,
-    x: int | None = None,
-    y: int | None = None,
-    width: int | None = None,
-    height: int | None = None,
+@mcp.tool(
+    description=(
+        "Return detailed text information for an element: full text, caret offset, "
+        "selections, and text attributes at the caret position."
+    )
+)
+def get_element_text(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_text(element_id=element_id))
+
+
+@mcp.tool(description="Return table dimensions, column headers, and caption for a table element.")
+def get_table_info(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_info(element_id=element_id))
+
+
+@mcp.tool(description="Return information about a specific cell in a table element.")
+def get_table_cell(element_id: str, row: int, col: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_cell(element_id=element_id, row=row, col=col))
+
+
+@mcp.tool(description="Return the ancestry chain from root to a given element as a list of nodes.")
+def get_element_path(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_path(element_id=element_id))
+
+
+@mcp.tool(
+    description=(
+        "Resolve multiple element IDs in one call, returning summaries for found "
+        "elements and a list of missing IDs."
+    )
+)
+def get_elements_by_ids(element_ids: list[str]) -> CallToolResult:
+    return _run_tool(lambda: backend.get_elements_by_ids(element_ids=element_ids))
+
+
+# Phase 7b: Wait/action patterns
+
+
+@mcp.tool(description="Wait for an application to appear in the AT-SPI tree.")
+def wait_for_app(
+    app_name: str,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+    require_window: bool = True,
 ) -> CallToolResult:
     return _run_tool(
-        lambda: backend.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+        lambda: backend.wait_for_app(
+            app_name=app_name,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
+            require_window=require_window,
+        )
     )
 
 
-@mcp.tool(description="Find text on screen via OCR and click it.")
-def click_text_ocr(
-    target: str,
-    button: Literal["left", "middle", "right"] = "left",
+@mcp.tool(description="Wait for a window to appear.")
+def wait_for_window(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
 ) -> CallToolResult:
-    return _run_tool(lambda: backend.click_text_ocr(target=target, button=button))
-
-
-@mcp.tool(description="Read a GNOME setting value.")
-def gsettings_get(schema: str, key: str) -> CallToolResult:
-    return _run_tool(lambda: backend.gsettings_get(schema=schema, key=key))
-
-
-@mcp.tool(description="Write a GNOME setting value.")
-def gsettings_set(schema: str, key: str, value: str | int | float | bool) -> CallToolResult:
-    return _run_tool(lambda: backend.gsettings_set(schema=schema, key=key, value=value))
-
-
-@mcp.tool(description="List all keys in a GSettings schema.")
-def gsettings_list_keys(schema: str) -> CallToolResult:
-    return _run_tool(lambda: backend.gsettings_list_keys(schema=schema))
-
-
-@mcp.tool(description="Reset a GNOME setting to its default value.")
-def gsettings_reset(schema: str, key: str) -> CallToolResult:
-    return _run_tool(lambda: backend.gsettings_reset(schema=schema, key=key))
-
-
-@mcp.tool(description="Get the pixel color at screen coordinates. Takes a screenshot first.")
-def get_pixel_color(x: int, y: int) -> CallToolResult:
-    return _run_tool(lambda: backend.get_pixel_color(x=x, y=y))
-
-
-@mcp.tool(description="Get the average color of a screen region.")
-def get_region_color(x: int, y: int, width: int, height: int) -> CallToolResult:
-    return _run_tool(lambda: backend.get_region_color(x=x, y=y, width=width, height=height))
-
-
-@mcp.tool(description="Compare two screenshots and return changed regions.")
-def visual_diff(image_path_1: str, image_path_2: str, threshold: int = 30) -> CallToolResult:
     return _run_tool(
-        lambda: backend.visual_diff(
-            image_path_1=image_path_1, image_path_2=image_path_2, threshold=threshold
+        lambda: backend.wait_for_window(
+            query=query,
+            app_name=app_name,
+            role=role,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
         )
     )
 
 
 @mcp.tool(
-    description=(
-        "List installed desktop applications available for launching, "
-        "optionally filtered by search query."
-    )
+    description=("Wait for an element to appear, then act on it. Atomic wait+act in one MCP call.")
 )
-def list_desktop_apps(
-    query: str = "",
-    include_hidden: bool = False,
-    max_results: int = 50,
-) -> CallToolResult:
-    return _run_tool(
-        lambda: backend.list_desktop_apps(
-            query=query, include_hidden=include_hidden, max_results=max_results
-        )
-    )
-
-
-@mcp.tool(description="Launch a desktop application by its .desktop file ID.")
-def launch_app(desktop_id: str) -> CallToolResult:
-    return _run_tool(lambda: backend.launch_app(desktop_id=desktop_id))
-
-
-@mcp.tool(description="Call any D-Bus method on the session bus. Returns the unpacked result.")
-def dbus_call(
-    bus_name: str,
-    object_path: str,
-    interface: str,
-    method: str,
-    signature: str | None = None,
-    args: list | None = None,
+def wait_and_act(
+    wait_query: str,
+    wait_role: str | None = None,
+    wait_app_name: str | None = None,
+    then_action: Literal["activate", "click", "focus", "set_text"] = "activate",
+    then_query: str | None = None,
+    then_role: str | None = None,
+    then_text: str | None = None,
     timeout_ms: int = 5000,
+    poll_interval_ms: int = 250,
 ) -> CallToolResult:
     return _run_tool(
-        lambda: backend.dbus_call(
-            bus_name=bus_name,
-            object_path=object_path,
-            interface=interface,
-            method=method,
-            signature=signature,
-            args=args,
+        lambda: backend.wait_and_act(
+            wait_query=wait_query,
+            wait_role=wait_role,
+            wait_app_name=wait_app_name,
+            then_action=then_action,
+            then_query=then_query,
+            then_role=then_role,
+            then_text=then_text,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
+        )
+    )
+
+
+@mcp.tool(description="Scroll an element into view if it is off-screen.")
+def scroll_to_element(
+    element_id: str,
+    max_scrolls: int = 20,
+    scroll_clicks: int = 3,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.scroll_to_element(
+            element_id=element_id,
+            max_scrolls=max_scrolls,
+            scroll_clicks=scroll_clicks,
+        )
+    )
+
+
+# Phase 7c: Assertions, events, snapshots, boundaries, history
+
+
+@mcp.tool(
+    description=(
+        "Assert that an element exists with expected states. "
+        "Returns pass/fail with structured checks."
+    )
+)
+def assert_element(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    expected_states: list[str] | None = None,
+    unexpected_states: list[str] | None = None,
+    timeout_ms: int = 3000,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.assert_element(
+            query=query,
+            app_name=app_name,
+            role=role,
+            expected_states=expected_states,
+            unexpected_states=unexpected_states,
             timeout_ms=timeout_ms,
         )
     )
 
 
-@mcp.tool(
-    description="List all connected monitors with resolution, position, scale, and hardware info."
-)
-def list_monitors() -> CallToolResult:
-    return _run_tool(backend.list_monitors)
-
-
-@mcp.tool(description="Switch to a workspace by direction (up or down).")
-def switch_workspace(direction: Literal["up", "down"]) -> CallToolResult:
-    return _run_tool(lambda: backend.switch_workspace(direction=direction))
-
-
-@mcp.tool(description="Move the focused window to another workspace by direction.")
-def move_window_to_workspace(direction: Literal["up", "down"]) -> CallToolResult:
-    return _run_tool(lambda: backend.move_window_to_workspace(direction=direction))
-
-
-@mcp.tool(description="List workspaces and their windows via GNOME Shell Introspect.")
-def list_workspaces() -> CallToolResult:
-    return _run_tool(backend.list_workspaces)
-
-
-@mcp.tool(description="Toggle the GNOME Activities overview on or off.")
-def toggle_overview(active: bool | None = None) -> CallToolResult:
-    return _run_tool(lambda: backend.toggle_overview(active=active))
-
-
-@mcp.tool(
-    description=(
-        "Start monitoring desktop notifications. Call notification_monitor_read to retrieve them."
-    )
-)
-def notification_monitor_start() -> CallToolResult:
-    return _run_tool(backend.notification_monitor_start)
-
-
-@mcp.tool(description="Read captured notifications since monitoring started.")
-def notification_monitor_read(clear: bool = True) -> CallToolResult:
-    return _run_tool(lambda: backend.notification_monitor_read(clear=clear))
-
-
-@mcp.tool(description="Stop monitoring desktop notifications.")
-def notification_monitor_stop() -> CallToolResult:
-    return _run_tool(backend.notification_monitor_stop)
-
-
-@mcp.tool(description="Start recording the screen or a region to video (MP4).")
-def screen_record_start(
-    x: int | None = None,
-    y: int | None = None,
-    width: int | None = None,
-    height: int | None = None,
-    framerate: int = 30,
-    draw_cursor: bool = True,
+@mcp.tool(description="Assert that an element's text matches expected value.")
+def assert_text(
+    element_id: str,
+    expected: str,
+    match: Literal["exact", "contains", "startswith", "regex"] = "contains",
 ) -> CallToolResult:
     return _run_tool(
-        lambda: backend.screen_record_start(
-            x=x, y=y, width=width, height=height, framerate=framerate, draw_cursor=draw_cursor
+        lambda: backend.assert_text(
+            element_id=element_id,
+            expected=expected,
+            match=match,
         )
     )
 
 
-@mcp.tool(description="Stop recording and optionally convert to GIF.")
-def screen_record_stop(
-    to_gif: bool = False,
-    gif_fps: int = 10,
-    gif_width: int = 640,
+@mcp.tool(description="Subscribe to AT-SPI events. Returns subscription ID.")
+def subscribe_events(
+    event_types: list[str],
+    app_name: str | None = None,
 ) -> CallToolResult:
     return _run_tool(
-        lambda: backend.screen_record_stop(to_gif=to_gif, gif_fps=gif_fps, gif_width=gif_width)
-    )
-
-
-@mcp.tool(description="List Wayland protocols available in the session.")
-def wayland_protocols(filter_protocol: str | None = None) -> CallToolResult:
-    return _run_tool(lambda: backend.wayland_protocols(filter_protocol=filter_protocol))
-
-
-@mcp.tool(description="Launch an application with stdout/stderr capture. Returns PID.")
-def launch_with_logging(command: str) -> CallToolResult:
-    return _run_tool(lambda: backend.launch_with_logging(command=command))
-
-
-@mcp.tool(description="Read stdout/stderr of a launched application by PID.")
-def read_app_log(pid: int, last_n_lines: int = 0) -> CallToolResult:
-    return _run_tool(lambda: backend.read_app_log(pid=pid, last_n_lines=last_n_lines))
-
-
-@mcp.tool(description="Close the currently focused window via Alt+F4.")
-def close_window() -> CallToolResult:
-    return _run_tool(backend.close_window)
-
-
-@mcp.tool(
-    description=(
-        "Move the focused window by a pixel offset using GNOME keyboard move mode "
-        "(Alt+F7 then arrow keys). Each arrow press moves ~10px."
-    )
-)
-def move_window(dx: int, dy: int) -> CallToolResult:
-    return _run_tool(lambda: backend.move_window(dx=dx, dy=dy))
-
-
-@mcp.tool(
-    description=(
-        "Resize the focused window by a pixel delta using GNOME keyboard resize mode "
-        "(Alt+F8 then arrow keys). Each arrow press resizes ~10px."
-    )
-)
-def resize_window(dw: int, dh: int) -> CallToolResult:
-    return _run_tool(lambda: backend.resize_window(dw=dw, dh=dh))
-
-
-@mcp.tool(
-    description=(
-        "Snap the focused window to a screen position. "
-        "Valid positions: maximize, restore, left, right."
-    )
-)
-def snap_window(
-    position: Literal["maximize", "restore", "left", "right"],
-) -> CallToolResult:
-    return _run_tool(lambda: backend.snap_window(position=position))
-
-
-@mcp.tool(
-    description=(
-        "Toggle a window state. "
-        "Valid states: fullscreen (F11), maximize (Alt+F10), minimize (Super+h)."
-    )
-)
-def toggle_window_state(
-    state: Literal["fullscreen", "maximize", "minimize"],
-) -> CallToolResult:
-    return _run_tool(lambda: backend.toggle_window_state(state=state))
-
-
-@mcp.tool(
-    description=(
-        "Find an input field by label text (AT-SPI first, OCR fallback) and type text into it. "
-        "Optionally press Return to submit."
-    )
-)
-def type_into(label: str, text: str, submit: bool = False) -> CallToolResult:
-    return _run_tool(lambda: backend.type_into(label=label, text=text, submit=submit))
-
-
-@mcp.tool(
-    description=(
-        "Take a screenshot and send it to a Vision Language Model for analysis. "
-        "Providers: openrouter (default), anthropic, ollama."
-    )
-)
-def analyze_screenshot(
-    prompt: str,
-    provider: str = "openrouter",
-    model: str | None = None,
-) -> CallToolResult:
-    return _run_tool(
-        lambda: backend.analyze_screenshot(prompt=prompt, provider=provider, model=model)
-    )
-
-
-@mcp.tool(
-    description=(
-        "Compare two screenshot images using a Vision Language Model. "
-        "Describe differences between the screenshots."
-    )
-)
-def compare_screenshots(
-    path1: str,
-    path2: str,
-    prompt: str | None = None,
-    provider: str = "openrouter",
-    model: str | None = None,
-) -> CallToolResult:
-    return _run_tool(
-        lambda: backend.compare_screenshots(
-            path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
+        lambda: backend.subscribe_events(
+            event_types=event_types,
+            app_name=app_name,
         )
     )
+
+
+@mcp.tool(description="Poll for captured AT-SPI events.")
+def poll_events(
+    subscription_id: str,
+    timeout_ms: int = 5000,
+    max_events: int = 100,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.poll_events(
+            subscription_id=subscription_id,
+            timeout_ms=timeout_ms,
+            max_events=max_events,
+        )
+    )
+
+
+@mcp.tool(description="Unsubscribe from AT-SPI events.")
+def unsubscribe_events(subscription_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.unsubscribe_events(subscription_id=subscription_id))
+
+
+@mcp.tool(description="Capture a snapshot of the current desktop state.")
+def snapshot_state() -> CallToolResult:
+    return _run_tool(backend.snapshot_state)
+
+
+@mcp.tool(description="Compare two desktop state snapshots and return changes.")
+def compare_state(before_id: str, after_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.compare_state(before_id=before_id, after_id=after_id))
+
+
+@mcp.tool(description="Restrict automation to a specific application.")
+def set_boundaries(
+    app_name: str | None = None,
+    allow_global_keys: list[str] | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.set_boundaries(
+            app_name=app_name,
+            allow_global_keys=allow_global_keys,
+        )
+    )
+
+
+@mcp.tool(description="Remove automation boundaries.")
+def clear_boundaries() -> CallToolResult:
+    return _run_tool(backend.clear_boundaries)
+
+
+@mcp.tool(description="Get recent automation actions with undo hints.")
+def get_action_history(last_n: int = 10) -> CallToolResult:
+    return _run_tool(lambda: backend.get_action_history(last_n=last_n))
+
+
+# Phase 7d: Utilities
+
+
+@mcp.tool(
+    description=(
+        "Take a screenshot with a colored rectangle highlighting an element for visual debugging."
+    )
+)
+def highlight_element(
+    element_id: str,
+    color: str = "red",
+    label: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.highlight_element(
+            element_id=element_id,
+            color=color,
+            label=label,
+        )
+    )
+
+
+@mcp.tool(description="Get the current keyboard layout.")
+def get_keyboard_layout() -> CallToolResult:
+    return _run_tool(backend.get_keyboard_layout)
+
+
+@mcp.tool(description="List valid key names by category.")
+def list_key_names(
+    category: Literal["navigation", "function", "modifier", "editing", "all"] = "all",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.list_key_names(category=category))
+
+
+@mcp.tool(description="Get which monitor contains a screen coordinate.")
+def get_monitor_for_point(x: int, y: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_monitor_for_point(x=x, y=y))
