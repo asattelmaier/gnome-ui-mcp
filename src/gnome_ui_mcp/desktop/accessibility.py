@@ -1099,6 +1099,51 @@ def get_focused_element(*, max_depth: int = 16) -> JsonDict:
 
 
 # ---------------------------------------------------------------------------
+# set_toggle_state
+# ---------------------------------------------------------------------------
+
+_TOGGLE_STATE_NAMES = {"checked", "pressed"}
+
+
+def _is_active_toggle(states: list[str]) -> bool:
+    return any(s in _TOGGLE_STATE_NAMES for s in states)
+
+
+def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
+    """Set a toggle/checkbox to a desired on/off state."""
+    accessible = _resolve_element(element_id)
+    states = _element_states(accessible)
+    current_active = _is_active_toggle(states)
+
+    if current_active == desired_state:
+        return {
+            "success": True,
+            "element_id": element_id,
+            "toggled": False,
+            "new_active": current_active,
+        }
+
+    action_index = _find_action_index(accessible, None)
+    if action_index is None:
+        return {
+            "success": False,
+            "error": "Element has no toggle action available",
+            "element_id": element_id,
+        }
+
+    accessible.do_action(action_index)
+    new_states = _element_states(accessible)
+    new_active = _is_active_toggle(new_states)
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "toggled": True,
+        "new_active": new_active,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Item 2: get_element_properties
 # ---------------------------------------------------------------------------
 

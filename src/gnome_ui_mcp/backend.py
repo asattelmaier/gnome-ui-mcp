@@ -596,6 +596,10 @@ def compare_screenshots(
 # Phase 7a: Deep AT-SPI query tools
 
 
+def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
+    return accessibility.set_toggle_state(element_id=element_id, desired_state=desired_state)
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 
