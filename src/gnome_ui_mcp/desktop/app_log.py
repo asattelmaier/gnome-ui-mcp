@@ -1,11 +1,31 @@
 from __future__ import annotations
 
+import os
+import select
 import shlex
 import subprocess
 
 from .types import JsonDict
 
 _PROCESSES: dict[int, JsonDict] = {}
+_READ_CHUNK = 65536
+
+
+def _read_available(stream: object) -> str:
+    """Read whatever bytes are available on *stream* without blocking."""
+    if stream is None:
+        return ""
+    fd = stream.fileno()  # type: ignore[union-attr]
+    chunks: list[bytes] = []
+    while True:
+        ready, _, _ = select.select([fd], [], [], 0)
+        if not ready:
+            break
+        data = os.read(fd, _READ_CHUNK)
+        if not data:
+            break
+        chunks.append(data)
+    return b"".join(chunks).decode("utf-8", errors="replace")
 
 
 def launch_with_logging(command: str) -> JsonDict:
@@ -39,12 +59,13 @@ def read_app_log(pid: int, last_n_lines: int = 0) -> JsonDict:
     stdout_data = ""
     stderr_data = ""
     try:
-        if proc.stdout and proc.stdout.readable():
-            raw = proc.stdout.read()
-            stdout_data = raw.decode("utf-8", errors="replace") if raw else ""
-        if proc.stderr and proc.stderr.readable():
-            raw = proc.stderr.read()
-            stderr_data = raw.decode("utf-8", errors="replace") if raw else ""
+        if running:
+            stdout_data = _read_available(proc.stdout)
+            stderr_data = _read_available(proc.stderr)
+        else:
+            out, err = proc.communicate(timeout=5)
+            stdout_data = out.decode("utf-8", errors="replace") if out else ""
+            stderr_data = err.decode("utf-8", errors="replace") if err else ""
     except Exception:
         pass
 
