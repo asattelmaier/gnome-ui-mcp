@@ -517,6 +517,18 @@ def navigate_menu(
 )
 def file_dialog_set_path(path: str) -> CallToolResult:
     return _run_tool(lambda: backend.file_dialog_set_path(path=path))
+@mcp.tool(description="Dismiss a desktop notification by its ID via D-Bus CloseNotification.")
+def dismiss_notification(notification_id: int) -> CallToolResult:
+    return _run_tool(lambda: backend.dismiss_notification(notification_id=notification_id))
+
+
+@mcp.tool(description="Invoke an action on a desktop notification by its ID and action key.")
+def click_notification_action(notification_id: int, action_key: str) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.click_notification_action(
+            notification_id=notification_id, action_key=action_key
+        )
+    )
 
 
 @mcp.tool(description="Return metadata about the currently focused element.")
