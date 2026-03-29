@@ -21,7 +21,7 @@ _MOVE_KEYS: dict[str, list[str]] = {
 
 def _send_key_combo(keys: list[str]) -> JsonDict:
     try:
-        result = input.press_key_combo("+".join(keys))
+        result = input.key_combo("+".join(keys))
         return {"success": result.get("success", False), "keys": keys, "result": result}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
