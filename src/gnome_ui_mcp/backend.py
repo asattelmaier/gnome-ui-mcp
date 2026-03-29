@@ -32,12 +32,18 @@ def accessibility_tree(
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> JsonDict:
     return accessibility.accessibility_tree(
         app_name=app_name,
         max_depth=max_depth,
         include_actions=include_actions,
         include_text=include_text,
+        filter_roles=filter_roles,
+        filter_states=filter_states,
+        showing_only=showing_only,
     )
 
 
@@ -318,3 +324,31 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+
+def get_focused_element() -> JsonDict:
+    return accessibility.get_focused_element()
+
+
+def get_element_properties(element_id: str) -> JsonDict:
+    return accessibility.get_element_properties(element_id=element_id)
+
+
+def get_element_text(element_id: str) -> JsonDict:
+    return accessibility.get_element_text(element_id=element_id)
+
+
+def get_table_info(element_id: str) -> JsonDict:
+    return accessibility.get_table_info(element_id=element_id)
+
+
+def get_table_cell(element_id: str, row: int, col: int) -> JsonDict:
+    return accessibility.get_table_cell(element_id=element_id, row=row, col=col)
+
+
+def get_element_path(element_id: str) -> JsonDict:
+    return accessibility.get_element_path(element_id=element_id)
+
+
+def get_elements_by_ids(element_ids: list[str]) -> JsonDict:
+    return accessibility.get_elements_by_ids(element_ids=element_ids)

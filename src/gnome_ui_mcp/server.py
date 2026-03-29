@@ -52,13 +52,19 @@ def list_windows(app_name: str | None = None) -> CallToolResult:
 
 
 @mcp.tool(
-    description="Return the accessibility tree for the whole desktop or a specific application."
+    description=(
+        "Return the accessibility tree for the whole desktop or a specific application. "
+        "Optionally filter by roles, states, or showing-only."
+    )
 )
 def accessibility_tree(
     app_name: str | None = None,
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.accessibility_tree(
@@ -66,6 +72,9 @@ def accessibility_tree(
             max_depth=max_depth,
             include_actions=include_actions,
             include_text=include_text,
+            filter_roles=filter_roles,
+            filter_states=filter_states,
+            showing_only=showing_only,
         )
     )
 
@@ -477,3 +486,53 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(description="Return metadata about the currently focused element.")
+def get_focused_element() -> CallToolResult:
+    return _run_tool(backend.get_focused_element)
+
+
+@mcp.tool(
+    description=(
+        "Return extended AT-SPI properties for an element: value, selection, "
+        "relations, attributes, and image info."
+    )
+)
+def get_element_properties(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_properties(element_id=element_id))
+
+
+@mcp.tool(
+    description=(
+        "Return detailed text information for an element: full text, caret offset, "
+        "selections, and text attributes at the caret position."
+    )
+)
+def get_element_text(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_text(element_id=element_id))
+
+
+@mcp.tool(description="Return table dimensions, column headers, and caption for a table element.")
+def get_table_info(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_info(element_id=element_id))
+
+
+@mcp.tool(description="Return information about a specific cell in a table element.")
+def get_table_cell(element_id: str, row: int, col: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_cell(element_id=element_id, row=row, col=col))
+
+
+@mcp.tool(description="Return the ancestry chain from root to a given element as a list of nodes.")
+def get_element_path(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_path(element_id=element_id))
+
+
+@mcp.tool(
+    description=(
+        "Resolve multiple element IDs in one call, returning summaries for found "
+        "elements and a list of missing IDs."
+    )
+)
+def get_elements_by_ids(element_ids: list[str]) -> CallToolResult:
+    return _run_tool(lambda: backend.get_elements_by_ids(element_ids=element_ids))
