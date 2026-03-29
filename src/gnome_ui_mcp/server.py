@@ -618,6 +618,16 @@ def get_elements_by_ids(element_ids: list[str]) -> CallToolResult:
     return _run_tool(lambda: backend.get_elements_by_ids(element_ids=element_ids))
 
 
+@mcp.tool(
+    description=(
+        "Get the tooltip text for an element. Checks the element's description first, "
+        "then looks for tooltip relations in the AT-SPI tree."
+    )
+)
+def get_tooltip_text(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_tooltip_text(element_id=element_id))
+
+
 # Phase 7b: Wait/action patterns
 
 

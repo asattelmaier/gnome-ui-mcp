@@ -669,6 +669,10 @@ def get_elements_by_ids(element_ids: list[str]) -> JsonDict:
     return accessibility.get_elements_by_ids(element_ids=element_ids)
 
 
+def get_tooltip_text(element_id: str) -> JsonDict:
+    return accessibility.get_tooltip_text(element_id=element_id)
+
+
 # Phase 7b: Wait/action patterns
 
 

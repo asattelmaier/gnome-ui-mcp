@@ -1510,3 +1510,69 @@ def get_elements_by_ids(element_ids: list[str]) -> JsonDict:
             missing.append(eid)
 
     return {"success": True, "elements": elements, "missing": missing}
+
+
+# ---------------------------------------------------------------------------
+# get_tooltip_text
+# ---------------------------------------------------------------------------
+
+
+def get_tooltip_text(element_id: str) -> JsonDict:
+    """Return the tooltip text for an element, if any.
+
+    Checks the element's description first, then looks for a TOOLTIP_FOR
+    relation to find the tooltip's text.
+    """
+    accessible = _resolve_element(element_id)
+
+    # 1. Check description -- often contains the tooltip text
+    description = _safe_call(accessible.get_description, "")
+    if description:
+        return {
+            "success": True,
+            "element_id": element_id,
+            "tooltip_text": description,
+            "source": "description",
+        }
+
+    # 2. Check relations for TOOLTIP_FOR type
+    relation_set = _safe_call(accessible.get_relation_set, []) or []
+    for rel in relation_set:
+        rel_type = _safe_call(rel.get_relation_type)
+        type_name = _safe_call(lambda rt=rel_type: rt.value_nick, "") if rel_type else ""
+        if "tooltip" in type_name.lower():
+            n_targets = _safe_call(rel.get_n_targets, 0) or 0
+            for j in range(n_targets):
+                target = _safe_call(lambda idx=j, r=rel: r.get_target(idx))
+                if target is not None:
+                    name = _safe_call(target.get_name, "")
+                    if name:
+                        return {
+                            "success": True,
+                            "element_id": element_id,
+                            "tooltip_text": name,
+                            "source": "relation",
+                        }
+                    # Try text interface
+                    text_iface = _safe_call(target.get_text_iface)
+                    if text_iface is not None:
+                        char_count = _safe_call(text_iface.get_character_count, 0) or 0
+                        if char_count > 0:
+                            text = _safe_call(
+                                lambda ti=text_iface, cc=char_count: ti.get_text(0, cc),
+                                "",
+                            )
+                            if text:
+                                return {
+                                    "success": True,
+                                    "element_id": element_id,
+                                    "tooltip_text": text,
+                                    "source": "relation",
+                                }
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "tooltip_text": None,
+        "source": None,
+    }
