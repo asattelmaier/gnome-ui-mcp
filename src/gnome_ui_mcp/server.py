@@ -477,3 +477,18 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(description="List Wayland protocols available in the session.")
+def wayland_protocols(filter_protocol: str | None = None) -> CallToolResult:
+    return _run_tool(lambda: backend.wayland_protocols(filter_protocol=filter_protocol))
+
+
+@mcp.tool(description="Launch an application with stdout/stderr capture. Returns PID.")
+def launch_with_logging(command: str) -> CallToolResult:
+    return _run_tool(lambda: backend.launch_with_logging(command=command))
+
+
+@mcp.tool(description="Read stdout/stderr of a launched application by PID.")
+def read_app_log(pid: int, last_n_lines: int = 0) -> CallToolResult:
+    return _run_tool(lambda: backend.read_app_log(pid=pid, last_n_lines=last_n_lines))

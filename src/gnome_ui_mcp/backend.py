@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction
+from .desktop import accessibility, app_log, input, interaction, wayland_info
 
 JsonDict = dict[str, object]
 
@@ -318,3 +318,15 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+
+def wayland_protocols(filter_protocol: str | None = None) -> JsonDict:
+    return wayland_info.wayland_info(filter_protocol=filter_protocol)
+
+
+def launch_with_logging(command: str) -> JsonDict:
+    return app_log.launch_with_logging(command=command)
+
+
+def read_app_log(pid: int, last_n_lines: int = 0) -> JsonDict:
+    return app_log.read_app_log(pid=pid, last_n_lines=last_n_lines)
