@@ -33,11 +33,15 @@ class EventSubscription:
 _subscriptions: dict[str, EventSubscription] = {}
 
 
-def subscribe_events(event_types: list[str]) -> JsonDict:
+def subscribe_events(event_types: list[str], app_name: str | None = None) -> JsonDict:
     """Register an AT-SPI event listener for the given event types.
 
+    Args:
+        event_types: List of AT-SPI event type strings to listen for.
+        app_name: Optional app name filter (reserved for future use).
+
     Returns a subscription id that can be used with :func:`poll_events`
-    and :func:`unsubscribe`.
+    and :func:`unsubscribe_events`.
     """
     if not event_types:
         return {"success": False, "error": "event_types must not be empty"}
@@ -72,11 +76,18 @@ def subscribe_events(event_types: list[str]) -> JsonDict:
 def poll_events(
     subscription_id: str,
     timeout_ms: int = 500,
+    max_events: int = 0,
     clear: bool = True,
 ) -> JsonDict:
     """Drain pending events from a subscription's buffer.
 
     Spins the GLib main context briefly to flush pending AT-SPI events.
+
+    Args:
+        subscription_id: ID returned from subscribe_events.
+        timeout_ms: Time in milliseconds to pump the GLib event loop.
+        max_events: Max events to return (0 = no limit).
+        clear: Whether to clear the buffer after collecting events.
     """
     sub = _subscriptions.get(subscription_id)
     if sub is None:
@@ -90,6 +101,8 @@ def poll_events(
             break
 
     collected = list(sub.buffer)
+    if max_events > 0:
+        collected = collected[:max_events]
     if clear:
         sub.buffer.clear()
 
@@ -110,3 +123,7 @@ def unsubscribe(subscription_id: str) -> JsonDict:
                 pass
 
     return {"success": True, "subscription_id": subscription_id}
+
+
+# Alias for consistency with backend/server naming convention
+unsubscribe_events = unsubscribe

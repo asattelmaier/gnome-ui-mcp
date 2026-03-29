@@ -1044,6 +1044,30 @@ def _screenshot_window_dbus(
             _release_screenshot_bus(bus)
 
 
+def _validate_screenshot_path(filename: str | None) -> tuple[Path, JsonDict | None]:
+    """Validate a screenshot filename is within CACHE_DIR (path traversal protection).
+
+    Returns (output_path, error_dict). If error_dict is not None, the path is invalid.
+    """
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    if filename:
+        output = Path(filename).expanduser().resolve()
+        try:
+            output.relative_to(CACHE_DIR.resolve())
+        except ValueError:
+            # Path is not relative to CACHE_DIR
+            return output, {
+                "success": False,
+                "error": f"Path must be within {CACHE_DIR}",
+            }
+    else:
+        output = CACHE_DIR / f"screenshot-{int(time.time() * 1000)}.png"
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    return output, None
+
+
 def screenshot_info() -> JsonDict:
     try:
         Gio.DBusProxy.new_for_bus_sync(
@@ -1071,17 +1095,9 @@ def screenshot(
     max_width: int | None = None,
     scale_to_logical: bool = False,
 ) -> JsonDict:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    if filename:
-        output = Path(filename).expanduser().resolve()
-        if not str(output).startswith(str(CACHE_DIR.resolve())):
-            return {
-                "success": False,
-                "error": f"Path must be within {CACHE_DIR}",
-            }
-    else:
-        output = CACHE_DIR / f"screenshot-{int(time.time() * 1000)}.png"
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output, error = _validate_screenshot_path(filename)
+    if error:
+        return error
 
     try:
         success, filename_used = _screenshot_dbus(str(output))
@@ -1156,13 +1172,14 @@ def screenshot_area(
     if width <= 0 or height <= 0:
         return {"success": False, "error": "Width and height must be positive"}
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    output = (
-        Path(filename).expanduser()
-        if filename
-        else CACHE_DIR / f"screenshot-area-{int(time.time() * 1000)}.png"
-    )
-    output.parent.mkdir(parents=True, exist_ok=True)
+    if filename:
+        output, error = _validate_screenshot_path(filename)
+        if error:
+            return error
+    else:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        output = CACHE_DIR / f"screenshot-area-{int(time.time() * 1000)}.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         success, filename_used = _screenshot_area_dbus(x, y, width, height, str(output))
@@ -1188,13 +1205,14 @@ def screenshot_window(
     include_cursor: bool = False,
     filename: str | None = None,
 ) -> JsonDict:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    output = (
-        Path(filename).expanduser()
-        if filename
-        else CACHE_DIR / f"screenshot-window-{int(time.time() * 1000)}.png"
-    )
-    output.parent.mkdir(parents=True, exist_ok=True)
+    if filename:
+        output, error = _validate_screenshot_path(filename)
+        if error:
+            return error
+    else:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        output = CACHE_DIR / f"screenshot-window-{int(time.time() * 1000)}.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         success, filename_used = _screenshot_window_dbus(include_frame, include_cursor, str(output))

@@ -40,8 +40,12 @@ def record_action(
     )
 
 
-def get_action_history(last_n: int = 10) -> list[JsonDict]:
+def get_action_history(last_n: int = 10) -> JsonDict:
     """Return the most recent *last_n* actions (newest first)."""
     items = list(_history)
     items.reverse()
-    return items[:last_n]
+    return {
+        "success": True,
+        "history": items[:last_n],
+        "count": len(items),
+    }

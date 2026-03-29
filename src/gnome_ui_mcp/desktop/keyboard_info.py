@@ -44,16 +44,24 @@ _KEY_CATEGORIES: dict[str, list[str]] = {
 }
 
 
-def list_key_names(category: str) -> JsonDict:
+def list_key_names(category: str = "all") -> JsonDict:
     """Return a list of symbolic key names for *category*.
 
-    Valid categories: ``navigation``, ``function``, ``modifier``, ``editing``.
+    Valid categories: ``navigation``, ``function``, ``modifier``, ``editing``, ``all``.
     """
+    if category == "all":
+        # Merge all categories
+        keys = []
+        for cat_keys in _KEY_CATEGORIES.values():
+            keys.extend(cat_keys)
+        return {"success": True, "category": "all", "keys": keys}
+
     keys = _KEY_CATEGORIES.get(category)
     if keys is None:
+        valid = sorted(list(_KEY_CATEGORIES.keys()) + ["all"])
         return {
             "success": False,
-            "error": f"Unknown category {category!r}. Valid: {sorted(_KEY_CATEGORIES.keys())}",
+            "error": f"Unknown category {category!r}. Valid: {valid}",
         }
     return {"success": True, "category": category, "keys": list(keys)}
 

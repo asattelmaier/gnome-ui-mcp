@@ -39,6 +39,7 @@ def assert_element(
 
         if time.monotonic() >= deadline:
             return {
+                "success": False,
                 "passed": False,
                 "checks": [{"check": "element_exists", "passed": False, "actual": None}],
                 "element": None,
@@ -67,7 +68,12 @@ def assert_element(
         if not absent:
             all_passed = False
 
-    return {"passed": all_passed, "checks": checks, "element": element}
+    return {
+        "success": all_passed,
+        "passed": all_passed,
+        "checks": checks,
+        "element": element,
+    }
 
 
 def assert_text(
@@ -83,6 +89,7 @@ def assert_text(
         accessible = accessibility._resolve_element(element_id)
     except (ValueError, RuntimeError) as exc:
         return {
+            "success": False,
             "passed": False,
             "error": str(exc),
             "actual": None,
@@ -93,6 +100,7 @@ def assert_text(
     actual = accessibility._element_text_preview(accessible)
     if actual is None:
         return {
+            "success": False,
             "passed": False,
             "actual": None,
             "expected": expected,
@@ -101,6 +109,7 @@ def assert_text(
 
     passed = _compare(actual, expected, match)
     return {
+        "success": passed,
         "passed": passed,
         "actual": actual,
         "expected": expected,

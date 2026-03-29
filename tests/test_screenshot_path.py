@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from gnome_ui_mcp.desktop.input import CACHE_DIR, screenshot
 
@@ -26,17 +26,28 @@ class TestScreenshotPathTraversal:
         assert result["success"] is False
         assert "Path must be within" in result["error"]
 
+    @patch("gnome_ui_mcp.desktop.input.Image")
     @patch("gnome_ui_mcp.desktop.input._screenshot_dbus")
-    def test_valid_path_within_cache_accepted(self, mock_dbus) -> None:
+    def test_valid_path_within_cache_accepted(
+        self, mock_dbus: MagicMock, mock_image: MagicMock
+    ) -> None:
         valid_path = str(CACHE_DIR / "test-capture.png")
         mock_dbus.return_value = (True, valid_path)
+        mock_img = MagicMock()
+        mock_img.size = (1920, 1080)
+        mock_image.open.return_value = mock_img
         result = screenshot(filename=valid_path)
         assert result["success"] is True
         mock_dbus.assert_called_once()
 
+    @patch("gnome_ui_mcp.desktop.input.Image")
     @patch("gnome_ui_mcp.desktop.input._screenshot_dbus")
-    def test_no_filename_auto_generates(self, mock_dbus) -> None:
-        mock_dbus.return_value = (True, "/some/path.png")
+    def test_no_filename_auto_generates(self, mock_dbus: MagicMock, mock_image: MagicMock) -> None:
+        valid_path = str(CACHE_DIR / "auto-generated.png")
+        mock_dbus.return_value = (True, valid_path)
+        mock_img = MagicMock()
+        mock_img.size = (1920, 1080)
+        mock_image.open.return_value = mock_img
         result = screenshot(filename=None)
         assert result["success"] is True
         mock_dbus.assert_called_once()

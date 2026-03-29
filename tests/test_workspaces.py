@@ -10,23 +10,23 @@ from gnome_ui_mcp.desktop import workspaces as ws_mod
 class TestSwitchWorkspace:
     def test_down_sends_ctrl_alt_down(self) -> None:
         with patch("gnome_ui_mcp.desktop.workspaces.input") as mock_input:
-            mock_input.press_key.return_value = {"success": True}
+            mock_input.press_key_combo.return_value = {"success": True}
             result = ws_mod.switch_workspace(direction="down")
 
         assert result["success"] is True
-        mock_input.press_key.assert_called()
-        # Should have sent key combo for Ctrl+Alt+Down
-        calls = [str(c) for c in mock_input.press_key.call_args_list]
-        assert any("Down" in c for c in calls)
+        mock_input.press_key_combo.assert_called_once()
+        # Should have sent key combo string containing Down
+        call_args = mock_input.press_key_combo.call_args[0][0]
+        assert "Down" in call_args
 
     def test_up_sends_ctrl_alt_up(self) -> None:
         with patch("gnome_ui_mcp.desktop.workspaces.input") as mock_input:
-            mock_input.press_key.return_value = {"success": True}
+            mock_input.press_key_combo.return_value = {"success": True}
             result = ws_mod.switch_workspace(direction="up")
 
         assert result["success"] is True
-        calls = [str(c) for c in mock_input.press_key.call_args_list]
-        assert any("Up" in c for c in calls)
+        call_args = mock_input.press_key_combo.call_args[0][0]
+        assert "Up" in call_args
 
     def test_invalid_direction_returns_error(self) -> None:
         result = ws_mod.switch_workspace(direction="sideways")
@@ -36,11 +36,13 @@ class TestSwitchWorkspace:
 class TestMoveWindowToWorkspace:
     def test_down_sends_ctrl_shift_alt_down(self) -> None:
         with patch("gnome_ui_mcp.desktop.workspaces.input") as mock_input:
-            mock_input.press_key.return_value = {"success": True}
+            mock_input.press_key_combo.return_value = {"success": True}
             result = ws_mod.move_window_to_workspace(direction="down")
 
         assert result["success"] is True
-        mock_input.press_key.assert_called()
+        mock_input.press_key_combo.assert_called_once()
+        call_args = mock_input.press_key_combo.call_args[0][0]
+        assert "Down" in call_args
 
     def test_invalid_direction_returns_error(self) -> None:
         result = ws_mod.move_window_to_workspace(direction="left")

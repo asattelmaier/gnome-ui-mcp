@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from collections import OrderedDict
 from typing import Any
 
 from . import accessibility
 
 JsonDict = dict[str, Any]
 
-# Module-level snapshot store: id -> snapshot dict
-_snapshots: dict[str, JsonDict] = {}
+# Module-level snapshot store: id -> snapshot dict (capped at 20 most recent)
+_MAX_SNAPSHOTS = 20
+_snapshots: OrderedDict[str, JsonDict] = OrderedDict()
 
 
 def snapshot_state() -> JsonDict:
@@ -31,6 +33,10 @@ def snapshot_state() -> JsonDict:
         "popups": popups,
     }
     _snapshots[snap_id] = snap
+
+    # Keep only the most recent _MAX_SNAPSHOTS
+    while len(_snapshots) > _MAX_SNAPSHOTS:
+        _snapshots.popitem(last=False)
 
     return {"success": True, "snapshot_id": snap_id, **snap}
 

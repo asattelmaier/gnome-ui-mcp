@@ -92,11 +92,19 @@ def session_start(
         return {"success": False, "error": str(exc)}
 
     if not _wait_for_shell_ready(proc):
+        try:
+            proc.stderr.close()
+        except Exception:
+            pass
         proc.terminate()
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
         return {
             "success": False,
             "error": "gnome-shell --headless did not start within timeout",
@@ -112,13 +120,18 @@ def session_start(
         "height": height,
     }
 
-    return {
+    response = {
         "success": True,
         "pid": proc.pid,
         "bus_address": bus_address,
         "width": width,
         "height": height,
     }
+
+    if bus_address is None:
+        response["warning"] = "Could not determine DBUS_SESSION_BUS_ADDRESS"
+
+    return response
 
 
 def session_stop() -> JsonDict:
@@ -139,7 +152,10 @@ def session_stop() -> JsonDict:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
         proc.kill()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
 
     return {"success": True, "pid": pid, "stopped": True}
 

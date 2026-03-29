@@ -79,6 +79,7 @@ class TestAnalyzeScreenshot:
         assert result["model"] == "gemma3"
 
     @patch("gnome_ui_mcp.desktop.vlm.input")
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_screenshot_failure(self, mock_input: MagicMock) -> None:
         mock_input.screenshot.return_value = {"success": False, "error": "no display"}
         result = vlm.analyze_screenshot("What?")

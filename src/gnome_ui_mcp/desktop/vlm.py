@@ -164,6 +164,16 @@ def analyze_screenshot(
             "error": f"Invalid provider {provider!r}. Valid providers: {valid}",
         }
 
+    # Check API key for providers that require it
+    if provider in _API_KEY_ENV:
+        api_key = os.environ.get(_API_KEY_ENV[provider], "")
+        if not api_key:
+            env_var = _API_KEY_ENV[provider]
+            return {
+                "success": False,
+                "error": f"{env_var} environment variable is not set",
+            }
+
     screenshot_result = input.screenshot()
     if not screenshot_result.get("success"):
         return {
@@ -225,6 +235,16 @@ def compare_screenshots(
             "success": False,
             "error": f"Invalid provider {provider!r}. Valid providers: {valid}",
         }
+
+    # Check API key for providers that require it
+    if provider in _API_KEY_ENV:
+        api_key = os.environ.get(_API_KEY_ENV[provider], "")
+        if not api_key:
+            env_var = _API_KEY_ENV[provider]
+            return {
+                "success": False,
+                "error": f"{env_var} environment variable is not set",
+            }
 
     resolved_model = model or _DEFAULT_MODELS[provider]
     resolved_prompt = prompt or (

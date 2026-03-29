@@ -21,13 +21,11 @@ _MOVE_KEYS: dict[str, list[str]] = {
 
 
 def _send_key_combo(keys: list[str]) -> JsonDict:
-    results = []
     try:
-        for key in keys:
-            results.append(input.press_key(key))
+        result = input.press_key_combo("+".join(keys))
+        return {"success": result.get("success", False), "keys": keys, "result": result}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
-    return {"success": True, "keys": keys, "results": results}
 
 
 def _unpack_variant(val: Any) -> Any:
