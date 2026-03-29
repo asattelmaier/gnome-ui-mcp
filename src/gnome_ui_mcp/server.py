@@ -493,6 +493,16 @@ def get_focused_element() -> CallToolResult:
     return _run_tool(backend.get_focused_element)
 
 
+@mcp.tool(description="Expand a tree or expander node if it is currently collapsed.")
+def expand_node(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.expand_node(element_id=element_id))
+
+
+@mcp.tool(description="Collapse a tree or expander node if it is currently expanded.")
+def collapse_node(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.collapse_node(element_id=element_id))
+
+
 @mcp.tool(
     description=(
         "Return extended AT-SPI properties for an element: value, selection, "
