@@ -517,6 +517,18 @@ def select_option(element_id: str, child_index: int) -> CallToolResult:
 
 @mcp.tool(
     description=(
+        "Set a toggle button or checkbox to a desired on/off state. "
+        "Returns no-op if already in the desired state."
+    )
+)
+def set_toggle_state(element_id: str, desired_state: bool) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.set_toggle_state(element_id=element_id, desired_state=desired_state)
+    )
+
+
+@mcp.tool(
+    description=(
         "Return extended AT-SPI properties for an element: value, selection, "
         "relations, attributes, and image info."
     )

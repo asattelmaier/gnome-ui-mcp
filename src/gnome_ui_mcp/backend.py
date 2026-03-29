@@ -606,6 +606,10 @@ def select_option(element_id: str, child_index: int) -> JsonDict:
     return accessibility.select_option(element_id=element_id, child_index=child_index)
 
 
+def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
+    return accessibility.set_toggle_state(element_id=element_id, desired_state=desired_state)
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 
