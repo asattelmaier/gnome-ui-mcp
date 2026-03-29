@@ -946,7 +946,6 @@ def screenshot_window(
     }
 
 
-
 def _child_process_env() -> dict[str, str]:
     env: dict[str, str] = {
         "PATH": "/usr/bin:/bin",

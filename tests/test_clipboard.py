@@ -15,7 +15,10 @@ class TestClipboardRead:
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "hello world"
-        with patch.object(subprocess, "run", return_value=mock_result):
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-paste"),
+            patch.object(subprocess, "run", return_value=mock_result),
+        ):
             result = input_mod.clipboard_read()
 
         assert result["success"] is True
@@ -26,7 +29,10 @@ class TestClipboardRead:
         mock_result = MagicMock()
         mock_result.returncode = 1
         mock_result.stderr = "Nothing is copied"
-        with patch.object(subprocess, "run", return_value=mock_result):
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-paste"),
+            patch.object(subprocess, "run", return_value=mock_result),
+        ):
             result = input_mod.clipboard_read()
 
         assert result["success"] is True
@@ -36,7 +42,10 @@ class TestClipboardRead:
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "primary text"
-        with patch.object(subprocess, "run", return_value=mock_result) as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-paste"),
+            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+        ):
             result = input_mod.clipboard_read(selection="primary")
 
         cmd = mock_run.call_args.args[0]
@@ -59,7 +68,10 @@ class TestClipboardWrite:
     def test_write_success(self) -> None:
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch.object(subprocess, "run", return_value=mock_result):
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-copy"),
+            patch.object(subprocess, "run", return_value=mock_result),
+        ):
             result = input_mod.clipboard_write("hello")
 
         assert result["success"] is True
@@ -69,7 +81,10 @@ class TestClipboardWrite:
     def test_write_primary_selection(self) -> None:
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch.object(subprocess, "run", return_value=mock_result) as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-copy"),
+            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+        ):
             result = input_mod.clipboard_write("text", selection="primary")
 
         cmd = mock_run.call_args.args[0]
@@ -90,7 +105,10 @@ class TestClipboardWrite:
     def test_write_empty_string(self) -> None:
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch.object(subprocess, "run", return_value=mock_result):
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-copy"),
+            patch.object(subprocess, "run", return_value=mock_result),
+        ):
             result = input_mod.clipboard_write("")
 
         assert result["success"] is True
