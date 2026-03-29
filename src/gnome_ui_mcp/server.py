@@ -52,13 +52,19 @@ def list_windows(app_name: str | None = None) -> CallToolResult:
 
 
 @mcp.tool(
-    description="Return the accessibility tree for the whole desktop or a specific application."
+    description=(
+        "Return the accessibility tree for the whole desktop or a specific application. "
+        "Optionally filter by roles, states, or showing-only."
+    )
 )
 def accessibility_tree(
     app_name: str | None = None,
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> CallToolResult:
     return _run_tool(
         lambda: backend.accessibility_tree(
@@ -66,6 +72,9 @@ def accessibility_tree(
             max_depth=max_depth,
             include_actions=include_actions,
             include_text=include_text,
+            filter_roles=filter_roles,
+            filter_states=filter_states,
+            showing_only=showing_only,
         )
     )
 
@@ -477,3 +486,285 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(description="Return metadata about the currently focused element.")
+def get_focused_element() -> CallToolResult:
+    return _run_tool(backend.get_focused_element)
+
+
+@mcp.tool(
+    description=(
+        "Return extended AT-SPI properties for an element: value, selection, "
+        "relations, attributes, and image info."
+    )
+)
+def get_element_properties(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_properties(element_id=element_id))
+
+
+@mcp.tool(
+    description=(
+        "Return detailed text information for an element: full text, caret offset, "
+        "selections, and text attributes at the caret position."
+    )
+)
+def get_element_text(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_text(element_id=element_id))
+
+
+@mcp.tool(description="Return table dimensions, column headers, and caption for a table element.")
+def get_table_info(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_info(element_id=element_id))
+
+
+@mcp.tool(description="Return information about a specific cell in a table element.")
+def get_table_cell(element_id: str, row: int, col: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_table_cell(element_id=element_id, row=row, col=col))
+
+
+@mcp.tool(description="Return the ancestry chain from root to a given element as a list of nodes.")
+def get_element_path(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.get_element_path(element_id=element_id))
+
+
+@mcp.tool(
+    description=(
+        "Resolve multiple element IDs in one call, returning summaries for found "
+        "elements and a list of missing IDs."
+    )
+)
+def get_elements_by_ids(element_ids: list[str]) -> CallToolResult:
+    return _run_tool(lambda: backend.get_elements_by_ids(element_ids=element_ids))
+
+
+# Phase 7b: Wait/action patterns
+
+
+@mcp.tool(description="Wait for an application to appear in the AT-SPI tree.")
+def wait_for_app(
+    app_name: str,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+    require_window: bool = True,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.wait_for_app(
+            app_name=app_name,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
+            require_window=require_window,
+        )
+    )
+
+
+@mcp.tool(description="Wait for a window to appear.")
+def wait_for_window(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.wait_for_window(
+            query=query,
+            app_name=app_name,
+            role=role,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
+        )
+    )
+
+
+@mcp.tool(
+    description=("Wait for an element to appear, then act on it. Atomic wait+act in one MCP call.")
+)
+def wait_and_act(
+    wait_query: str,
+    wait_role: str | None = None,
+    wait_app_name: str | None = None,
+    then_action: Literal["activate", "click", "focus", "set_text"] = "activate",
+    then_query: str | None = None,
+    then_role: str | None = None,
+    then_text: str | None = None,
+    timeout_ms: int = 5000,
+    poll_interval_ms: int = 250,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.wait_and_act(
+            wait_query=wait_query,
+            wait_role=wait_role,
+            wait_app_name=wait_app_name,
+            then_action=then_action,
+            then_query=then_query,
+            then_role=then_role,
+            then_text=then_text,
+            timeout_ms=timeout_ms,
+            poll_interval_ms=poll_interval_ms,
+        )
+    )
+
+
+@mcp.tool(description="Scroll an element into view if it is off-screen.")
+def scroll_to_element(
+    element_id: str,
+    max_scrolls: int = 20,
+    scroll_clicks: int = 3,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.scroll_to_element(
+            element_id=element_id,
+            max_scrolls=max_scrolls,
+            scroll_clicks=scroll_clicks,
+        )
+    )
+
+
+# Phase 7c: Assertions, events, snapshots, boundaries, history
+
+
+@mcp.tool(
+    description=(
+        "Assert that an element exists with expected states. "
+        "Returns pass/fail with structured checks."
+    )
+)
+def assert_element(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    expected_states: list[str] | None = None,
+    unexpected_states: list[str] | None = None,
+    timeout_ms: int = 3000,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.assert_element(
+            query=query,
+            app_name=app_name,
+            role=role,
+            expected_states=expected_states,
+            unexpected_states=unexpected_states,
+            timeout_ms=timeout_ms,
+        )
+    )
+
+
+@mcp.tool(description="Assert that an element's text matches expected value.")
+def assert_text(
+    element_id: str,
+    expected: str,
+    match: Literal["exact", "contains", "startswith", "regex"] = "contains",
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.assert_text(
+            element_id=element_id,
+            expected=expected,
+            match=match,
+        )
+    )
+
+
+@mcp.tool(description="Subscribe to AT-SPI events. Returns subscription ID.")
+def subscribe_events(
+    event_types: list[str],
+    app_name: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.subscribe_events(
+            event_types=event_types,
+            app_name=app_name,
+        )
+    )
+
+
+@mcp.tool(description="Poll for captured AT-SPI events.")
+def poll_events(
+    subscription_id: str,
+    timeout_ms: int = 5000,
+    max_events: int = 100,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.poll_events(
+            subscription_id=subscription_id,
+            timeout_ms=timeout_ms,
+            max_events=max_events,
+        )
+    )
+
+
+@mcp.tool(description="Unsubscribe from AT-SPI events.")
+def unsubscribe_events(subscription_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.unsubscribe_events(subscription_id=subscription_id))
+
+
+@mcp.tool(description="Capture a snapshot of the current desktop state.")
+def snapshot_state() -> CallToolResult:
+    return _run_tool(backend.snapshot_state)
+
+
+@mcp.tool(description="Compare two desktop state snapshots and return changes.")
+def compare_state(before_id: str, after_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.compare_state(before_id=before_id, after_id=after_id))
+
+
+@mcp.tool(description="Restrict automation to a specific application.")
+def set_boundaries(
+    app_name: str | None = None,
+    allow_global_keys: list[str] | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.set_boundaries(
+            app_name=app_name,
+            allow_global_keys=allow_global_keys,
+        )
+    )
+
+
+@mcp.tool(description="Remove automation boundaries.")
+def clear_boundaries() -> CallToolResult:
+    return _run_tool(backend.clear_boundaries)
+
+
+@mcp.tool(description="Get recent automation actions with undo hints.")
+def get_action_history(last_n: int = 10) -> CallToolResult:
+    return _run_tool(lambda: backend.get_action_history(last_n=last_n))
+
+
+# Phase 7d: Utilities
+
+
+@mcp.tool(
+    description=(
+        "Take a screenshot with a colored rectangle highlighting an element for visual debugging."
+    )
+)
+def highlight_element(
+    element_id: str,
+    color: str = "red",
+    label: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.highlight_element(
+            element_id=element_id,
+            color=color,
+            label=label,
+        )
+    )
+
+
+@mcp.tool(description="Get the current keyboard layout.")
+def get_keyboard_layout() -> CallToolResult:
+    return _run_tool(backend.get_keyboard_layout)
+
+
+@mcp.tool(description="List valid key names by category.")
+def list_key_names(
+    category: Literal["navigation", "function", "modifier", "editing", "all"] = "all",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.list_key_names(category=category))
+
+
+@mcp.tool(description="Get which monitor contains a screen coordinate.")
+def get_monitor_for_point(x: int, y: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_monitor_for_point(x=x, y=y))

@@ -2,7 +2,24 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction
+from .desktop import (
+    accessibility,
+    app_wait,
+    assertions,
+    boundaries,
+    events,
+    highlight,
+    history,
+    input,
+    interaction,
+    keyboard_info,
+    monitor_point,
+    snapshots,
+    wait_act,
+)
+from .desktop import (
+    scroll as scroll_mod,
+)
 
 JsonDict = dict[str, object]
 
@@ -32,12 +49,18 @@ def accessibility_tree(
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> JsonDict:
     return accessibility.accessibility_tree(
         app_name=app_name,
         max_depth=max_depth,
         include_actions=include_actions,
         include_text=include_text,
+        filter_roles=filter_roles,
+        filter_states=filter_states,
+        showing_only=showing_only,
     )
 
 
@@ -318,3 +341,137 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+
+def get_focused_element() -> JsonDict:
+    return accessibility.get_focused_element()
+
+
+def get_element_properties(element_id: str) -> JsonDict:
+    return accessibility.get_element_properties(element_id=element_id)
+
+
+def get_element_text(element_id: str) -> JsonDict:
+    return accessibility.get_element_text(element_id=element_id)
+
+
+def get_table_info(element_id: str) -> JsonDict:
+    return accessibility.get_table_info(element_id=element_id)
+
+
+def get_table_cell(element_id: str, row: int, col: int) -> JsonDict:
+    return accessibility.get_table_cell(element_id=element_id, row=row, col=col)
+
+
+def get_element_path(element_id: str) -> JsonDict:
+    return accessibility.get_element_path(element_id=element_id)
+
+
+def get_elements_by_ids(element_ids: list[str]) -> JsonDict:
+    return accessibility.get_elements_by_ids(element_ids=element_ids)
+
+
+# Phase 7b: Wait/action patterns
+
+
+def wait_for_app(
+    app_name: str, timeout_ms: int = 10000, poll_interval_ms: int = 250, require_window: bool = True
+) -> JsonDict:
+    return app_wait.wait_for_app(
+        app_name=app_name,
+        timeout_ms=timeout_ms,
+        poll_interval_ms=poll_interval_ms,
+        require_window=require_window,
+    )
+
+
+def wait_for_window(
+    query: str,
+    app_name: str | None = None,
+    role: str | None = None,
+    timeout_ms: int = 10000,
+    poll_interval_ms: int = 250,
+) -> JsonDict:
+    return app_wait.wait_for_window(
+        query=query,
+        app_name=app_name,
+        role=role,
+        timeout_ms=timeout_ms,
+        poll_interval_ms=poll_interval_ms,
+    )
+
+
+def wait_and_act(**kwargs: object) -> JsonDict:
+    return wait_act.wait_and_act(**kwargs)
+
+
+def scroll_to_element(element_id: str, max_scrolls: int = 20, scroll_clicks: int = 3) -> JsonDict:
+    return scroll_mod.scroll_to_element(
+        element_id=element_id, max_scrolls=max_scrolls, scroll_clicks=scroll_clicks
+    )
+
+
+# Phase 7c: Assertions, events, snapshots, boundaries, history
+
+
+def assert_element(**kwargs: object) -> JsonDict:
+    return assertions.assert_element(**kwargs)
+
+
+def assert_text(**kwargs: object) -> JsonDict:
+    return assertions.assert_text(**kwargs)
+
+
+def subscribe_events(event_types: list[str], app_name: str | None = None) -> JsonDict:
+    return events.subscribe_events(event_types=event_types, app_name=app_name)
+
+
+def poll_events(subscription_id: str, timeout_ms: int = 5000, max_events: int = 100) -> JsonDict:
+    return events.poll_events(
+        subscription_id=subscription_id, timeout_ms=timeout_ms, max_events=max_events
+    )
+
+
+def unsubscribe_events(subscription_id: str) -> JsonDict:
+    return events.unsubscribe_events(subscription_id=subscription_id)
+
+
+def snapshot_state() -> JsonDict:
+    return snapshots.snapshot_state()
+
+
+def compare_state(before_id: str, after_id: str) -> JsonDict:
+    return snapshots.compare_state(before_id=before_id, after_id=after_id)
+
+
+def set_boundaries(
+    app_name: str | None = None, allow_global_keys: list[str] | None = None
+) -> JsonDict:
+    return boundaries.set_boundaries(app_name=app_name, allow_global_keys=allow_global_keys)
+
+
+def clear_boundaries() -> JsonDict:
+    return boundaries.clear_boundaries()
+
+
+def get_action_history(last_n: int = 10) -> JsonDict:
+    return history.get_action_history(last_n=last_n)
+
+
+# Phase 7d: Utilities
+
+
+def highlight_element(element_id: str, color: str = "red", label: str | None = None) -> JsonDict:
+    return highlight.highlight_element(element_id=element_id, color=color, label=label)
+
+
+def get_keyboard_layout() -> JsonDict:
+    return keyboard_info.get_keyboard_layout()
+
+
+def list_key_names(category: str = "all") -> JsonDict:
+    return keyboard_info.list_key_names(category=category)
+
+
+def get_monitor_for_point(x: int, y: int) -> JsonDict:
+    return monitor_point.get_monitor_for_point(x=x, y=y)
