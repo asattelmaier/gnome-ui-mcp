@@ -9,6 +9,23 @@ from .locators import locator_for_element_id, relocate_from_locator
 JsonDict = dict[str, Any]
 
 
+def _capture_burst(screenshot_after_ms: list[int] | None) -> list[JsonDict] | None:
+    if not screenshot_after_ms:
+        return None
+
+    sorted_delays = sorted(screenshot_after_ms)
+    screenshots: list[JsonDict] = []
+    prev_ms = 0
+    for delay_ms in sorted_delays:
+        wait = (delay_ms - prev_ms) / 1000
+        if wait > 0:
+            time.sleep(wait)
+        screenshots.append(input.screenshot())
+        prev_ms = delay_ms
+
+    return screenshots
+
+
 def _effect_context(element_id: str | None = None) -> JsonDict:
     context: JsonDict = {"shell_popups": accessibility._shell_popup_signature()}
     if element_id is None:
@@ -636,6 +653,30 @@ def key_combo(
     if combo_result.get("fallback_error"):
         result["fallback_error"] = combo_result["fallback_error"]
     return result
+
+
+def hover_element(element_id: str) -> JsonDict:
+    try:
+        accessible = accessibility._resolve_element(element_id)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
+
+    bounds = accessibility._element_bounds(accessible)
+    center = accessibility._center(bounds)
+    if center is None:
+        return {
+            "success": False,
+            "error": "Element has no computable bounds for hover",
+            "element_id": element_id,
+        }
+
+    move_result = input.perform_mouse_move(center[0], center[1])
+    move_result["element_id"] = element_id
+    move_result["x"] = center[0]
+    move_result["y"] = center[1]
+    move_result["bounds"] = bounds
+    move_result["effect_verified"] = None
+    return move_result
 
 
 def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> JsonDict:

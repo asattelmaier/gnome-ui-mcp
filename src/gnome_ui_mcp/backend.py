@@ -2,7 +2,25 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction, session
+from .desktop import (
+    accessibility,
+    app_log,
+    apps,
+    dbus,
+    display,
+    gsettings,
+    input,
+    interaction,
+    notifications,
+    ocr,
+    screencast,
+    session,
+    visual,
+    vlm,
+    wayland_info,
+    window_management,
+    workspaces,
+)
 
 JsonDict = dict[str, object]
 
@@ -131,8 +149,40 @@ def scroll(
     )
 
 
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    return input.perform_drag(
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        button=button,
+        steps=steps,
+        duration_ms=duration_ms,
+    )
+
+
+def clipboard_read(selection: str = "clipboard") -> JsonDict:
+    return input.clipboard_read(selection=selection)
+
+
+def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
+    return input.clipboard_write(text=text, selection=selection)
+
+
 def mouse_move(x: int, y: int) -> JsonDict:
     return input.perform_mouse_move(x=x, y=y)
+
+
+def hover_element(element_id: str) -> JsonDict:
+    return interaction.hover_element(element_id=element_id)
 
 
 def set_element_text(element_id: str, text: str) -> JsonDict:
@@ -185,8 +235,20 @@ def key_combo(
     )
 
 
-def screenshot(filename: str | None = None) -> JsonDict:
-    return input.screenshot(filename=filename)
+def screenshot(
+    filename: str | None = None,
+    output_format: str | None = None,
+    quality: int = 85,
+    max_width: int | None = None,
+    scale_to_logical: bool = False,
+) -> JsonDict:
+    return input.screenshot(
+        filename=filename,
+        output_format=output_format,
+        quality=quality,
+        max_width=max_width,
+        scale_to_logical=scale_to_logical,
+    )
 
 
 def screenshot_area(
@@ -317,6 +379,198 @@ def wait_for_element_gone(
         bounds_only=bounds_only,
         within_element_id=within_element_id,
         within_popup=within_popup,
+    )
+
+
+def ocr_screen(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.ocr_screen(x=x, y=y, width=width, height=height)
+
+
+def find_text_ocr(
+    target: str,
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+
+
+def click_text_ocr(target: str, button: str = "left") -> JsonDict:
+    return ocr.click_text_ocr(target=target, button=button)
+
+
+def gsettings_get(schema: str, key: str) -> JsonDict:
+    return gsettings.gsettings_get(schema=schema, key=key)
+
+
+def gsettings_set(schema: str, key: str, value: object) -> JsonDict:
+    return gsettings.gsettings_set(schema=schema, key=key, value=value)
+
+
+def gsettings_list_keys(schema: str) -> JsonDict:
+    return gsettings.gsettings_list_keys(schema=schema)
+
+
+def gsettings_reset(schema: str, key: str) -> JsonDict:
+    return gsettings.gsettings_reset(schema=schema, key=key)
+
+
+def get_pixel_color(x: int, y: int) -> JsonDict:
+    return visual.get_pixel_color(x=x, y=y)
+
+
+def get_region_color(x: int, y: int, width: int, height: int) -> JsonDict:
+    return visual.get_region_color(x=x, y=y, width=width, height=height)
+
+
+def visual_diff(image_path_1: str, image_path_2: str, threshold: int = 30) -> JsonDict:
+    return visual.visual_diff(
+        image_path_1=image_path_1, image_path_2=image_path_2, threshold=threshold
+    )
+
+
+def list_desktop_apps(
+    query: str = "",
+    include_hidden: bool = False,
+    max_results: int = 50,
+) -> JsonDict:
+    return apps.list_desktop_apps(
+        query=query, include_hidden=include_hidden, max_results=max_results
+    )
+
+
+def launch_app(desktop_id: str) -> JsonDict:
+    return apps.launch_app(desktop_id=desktop_id)
+
+
+def dbus_call(
+    bus_name: str,
+    object_path: str,
+    interface: str,
+    method: str,
+    signature: str | None = None,
+    args: list | None = None,
+    timeout_ms: int = 5000,
+) -> JsonDict:
+    return dbus.dbus_call(
+        bus_name=bus_name,
+        object_path=object_path,
+        interface=interface,
+        method=method,
+        signature=signature,
+        args=args,
+        timeout_ms=timeout_ms,
+    )
+
+
+def list_monitors() -> JsonDict:
+    return display.list_monitors()
+
+
+def switch_workspace(direction: str) -> JsonDict:
+    return workspaces.switch_workspace(direction=direction)
+
+
+def move_window_to_workspace(direction: str) -> JsonDict:
+    return workspaces.move_window_to_workspace(direction=direction)
+
+
+def list_workspaces() -> JsonDict:
+    return workspaces.list_workspaces()
+
+
+def toggle_overview(active: bool | None = None) -> JsonDict:
+    return workspaces.toggle_overview(active=active)
+
+
+def notification_monitor_start() -> JsonDict:
+    return notifications.notification_monitor_start()
+
+
+def notification_monitor_read(clear: bool = True) -> JsonDict:
+    return notifications.notification_monitor_read(clear=clear)
+
+
+def notification_monitor_stop() -> JsonDict:
+    return notifications.notification_monitor_stop()
+
+
+def screen_record_start(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    framerate: int = 30,
+    draw_cursor: bool = True,
+) -> JsonDict:
+    return screencast.screen_record_start(
+        x=x, y=y, width=width, height=height, framerate=framerate, draw_cursor=draw_cursor
+    )
+
+
+def screen_record_stop(to_gif: bool = False, gif_fps: int = 10, gif_width: int = 640) -> JsonDict:
+    return screencast.screen_record_stop(to_gif=to_gif, gif_fps=gif_fps, gif_width=gif_width)
+
+
+def wayland_protocols(filter_protocol: str | None = None) -> JsonDict:
+    return wayland_info.wayland_info(filter_protocol=filter_protocol)
+
+
+def launch_with_logging(command: str) -> JsonDict:
+    return app_log.launch_with_logging(command=command)
+
+
+def read_app_log(pid: int, last_n_lines: int = 0) -> JsonDict:
+    return app_log.read_app_log(pid=pid, last_n_lines=last_n_lines)
+
+
+def close_window() -> JsonDict:
+    return window_management.close_window()
+
+
+def move_window(dx: int, dy: int) -> JsonDict:
+    return window_management.move_window(dx=dx, dy=dy)
+
+
+def resize_window(dw: int, dh: int) -> JsonDict:
+    return window_management.resize_window(dw=dw, dh=dh)
+
+
+def snap_window(position: str) -> JsonDict:
+    return window_management.snap_window(position=position)
+
+
+def toggle_window_state(state: str) -> JsonDict:
+    return window_management.toggle_window_state(state=state)
+
+
+def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
+    return ocr.type_into(label=label, text=text, submit=submit)
+
+
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+
+
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.compare_screenshots(
+        path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
     )
 
 

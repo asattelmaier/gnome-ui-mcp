@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import atexit
+import os
+import shutil
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -9,7 +12,27 @@ from typing import Any
 
 from ..runtime.gi_env import Atspi, Gdk, Gio, GLib
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
+
 JsonDict = dict[str, Any]
+
+
+def get_display_scale_factor() -> int:
+    try:
+        display = Gdk.Display.get_default()
+        if display is None:
+            return 1
+        count = display.get_n_monitors()
+        if count <= 0:
+            return 1
+        monitor = display.get_monitor(0)
+        return int(monitor.get_scale_factor())
+    except Exception:
+        return 1
+
 
 CACHE_DIR = Path.home() / ".cache" / "gnome-ui-mcp" / "screenshots"
 GNOME_SHELL_SCREENSHOT_BUS = "org.gnome.Shell.Screenshot"
@@ -144,6 +167,89 @@ class _MutterRemoteDesktopInput:
             "success": True,
             "x": x,
             "y": y,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
+    def drag_to(
+        self,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        *,
+        button: str = "left",
+        steps: int = 10,
+        duration_ms: int = 300,
+    ) -> JsonDict:
+        button_code = REMOTE_POINTER_BUTTONS.get(button.lower())
+        if button_code is None:
+            msg = "button must be left, middle, or right"
+            raise ValueError(msg)
+
+        stream_path, stage_area = self._ensure_session()
+        start_lx, start_ly = stage_area.local_coordinates(start_x, start_y)
+        end_lx, end_ly = stage_area.local_coordinates(end_x, end_y)
+
+        def _call(method: str, params: GLib.Variant) -> None:
+            self._rd_session.call_sync(method, params, Gio.DBusCallFlags.NONE, -1, None)
+
+        with self._lock:
+            if self._rd_session is None:
+                msg = "Remote desktop session is not available"
+                raise RuntimeError(msg)
+
+            session = self._rd_session
+            _call(
+                "NotifyPointerMotionAbsolute",
+                GLib.Variant("(sdd)", (stream_path, start_lx, start_ly)),
+            )
+            time.sleep(0.02)
+            _call("NotifyPointerButton", GLib.Variant("(ib)", (button_code, True)))
+            try:
+                actual_steps = max(0, steps)
+                start_time = time.monotonic()
+                for i in range(1, actual_steps + 1):
+                    frac = i / actual_steps if actual_steps else 1.0
+                    ix = start_lx + frac * (end_lx - start_lx)
+                    iy = start_ly + frac * (end_ly - start_ly)
+                    _call(
+                        "NotifyPointerMotionAbsolute",
+                        GLib.Variant("(sdd)", (stream_path, ix, iy)),
+                    )
+                    if duration_ms > 0 and actual_steps > 0:
+                        target = start_time + (duration_ms / 1000) * i / actual_steps
+                        remaining = target - time.monotonic()
+                        if remaining > 0:
+                            time.sleep(remaining)
+
+                if actual_steps == 0:
+                    _call(
+                        "NotifyPointerMotionAbsolute",
+                        GLib.Variant("(sdd)", (stream_path, end_lx, end_ly)),
+                    )
+            finally:
+                try:
+                    session.call_sync(
+                        "NotifyPointerButton",
+                        GLib.Variant("(ib)", (button_code, False)),
+                        Gio.DBusCallFlags.NONE,
+                        -1,
+                        None,
+                    )
+                except Exception:
+                    pass
+
+        return {
+            "success": True,
+            "start_x": start_x,
+            "start_y": start_y,
+            "end_x": end_x,
+            "end_y": end_y,
+            "button": button.lower(),
+            "click_count": 1,
+            "steps": steps,
+            "duration_ms": duration_ms,
             "backend": "mutter-remote-desktop",
             "stream_path": stream_path,
         }
@@ -518,14 +624,25 @@ def _perform_mouse_click_atspi(
     }
 
 
-def perform_mouse_click(x: int, y: int, *, button: str = "left", click_count: int = 1) -> JsonDict:
+def perform_mouse_click(
+    x: int, y: int, *, button: str = "left", click_count: int = 1, coordinate_space: str = "logical"
+) -> JsonDict:
     if not (1 <= click_count <= 3):
         msg = f"click_count must be 1, 2, or 3 (got {click_count})"
         raise ValueError(msg)
+    actual_x, actual_y = x, y
+    if coordinate_space == "pixel":
+        scale = get_display_scale_factor()
+        if scale > 1:
+            actual_x = x // scale
+            actual_y = y // scale
+
     try:
-        return _REMOTE_INPUT.click_at(x, y, button=button, click_count=click_count)
+        return _REMOTE_INPUT.click_at(actual_x, actual_y, button=button, click_count=click_count)
     except Exception as exc:
-        result = _perform_mouse_click_atspi(x, y, button=button, click_count=click_count)
+        result = _perform_mouse_click_atspi(
+            actual_x, actual_y, button=button, click_count=click_count
+        )
         result["fallback_error"] = str(exc)
         return result
 
@@ -560,6 +677,62 @@ def _perform_scroll_atspi(
     }
 
 
+ATSPI_BUTTON_PRESS = {"left": "b1p", "middle": "b2p", "right": "b3p"}
+ATSPI_BUTTON_RELEASE = {"left": "b1r", "middle": "b2r", "right": "b3r"}
+
+
+def _perform_drag_atspi(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    btn = button.lower()
+    press_event = ATSPI_BUTTON_PRESS.get(btn)
+    release_event = ATSPI_BUTTON_RELEASE.get(btn)
+    if press_event is None or release_event is None:
+        msg = "button must be left, middle, or right"
+        raise ValueError(msg)
+
+    Atspi.generate_mouse_event(start_x, start_y, "abs")
+    time.sleep(0.05)
+    Atspi.generate_mouse_event(start_x, start_y, press_event)
+    try:
+        actual_steps = max(0, steps)
+        start_time = time.monotonic()
+        for i in range(1, actual_steps + 1):
+            frac = i / actual_steps if actual_steps else 1.0
+            ix = int(start_x + frac * (end_x - start_x))
+            iy = int(start_y + frac * (end_y - start_y))
+            Atspi.generate_mouse_event(ix, iy, "abs")
+            if duration_ms > 0 and actual_steps > 0:
+                target = start_time + (duration_ms / 1000) * i / actual_steps
+                remaining = target - time.monotonic()
+                if remaining > 0:
+                    time.sleep(remaining)
+
+        if actual_steps == 0:
+            Atspi.generate_mouse_event(end_x, end_y, "abs")
+    finally:
+        Atspi.generate_mouse_event(end_x, end_y, release_event)
+
+    return {
+        "success": True,
+        "start_x": start_x,
+        "start_y": start_y,
+        "end_x": end_x,
+        "end_y": end_y,
+        "button": btn,
+        "steps": steps,
+        "duration_ms": duration_ms,
+        "backend": "atspi",
+    }
+
+
 def perform_scroll(
     direction: str,
     clicks: int = 3,
@@ -577,6 +750,40 @@ def perform_scroll(
         return _REMOTE_INPUT.scroll(direction, clicks, x, y)
     except Exception as exc:
         result = _perform_scroll_atspi(direction, clicks, x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def perform_drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    *,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    try:
+        return _REMOTE_INPUT.drag_to(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+        )
+    except Exception as exc:
+        result = _perform_drag_atspi(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+        )
         result["fallback_error"] = str(exc)
         return result
 
@@ -857,7 +1064,13 @@ def screenshot_info() -> JsonDict:
         return {"available": False, "error": str(exc)}
 
 
-def screenshot(filename: str | None = None) -> JsonDict:
+def screenshot(
+    filename: str | None = None,
+    output_format: str | None = None,
+    quality: int = 85,
+    max_width: int | None = None,
+    scale_to_logical: bool = False,
+) -> JsonDict:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     if filename:
         output = Path(filename).expanduser().resolve()
@@ -878,7 +1091,63 @@ def screenshot(filename: str | None = None) -> JsonDict:
     if not success:
         return {"success": False, "error": "Shell screenshot returned failure"}
 
-    return {"success": True, "path": filename_used}
+    scale_factor = get_display_scale_factor()
+
+    # If resizing is requested but PIL is not available, return error
+    if (scale_to_logical or max_width) and Image is None:
+        return {
+            "success": False,
+            "error": (
+                "Pillow is required for image resizing. "
+                "Install with: pip install 'gnome-ui-mcp[hidpi]'"
+            ),
+        }
+
+    needs_save = False
+    final_path = filename_used
+
+    # Open image and get dimensions
+    if Image is not None:
+        img = Image.open(filename_used)
+        pixel_w, pixel_h = img.size
+    else:
+        # Without PIL, we can't open the image to get dimensions
+        # Return basic info without pixel dimensions
+        return {
+            "success": True,
+            "path": final_path,
+            "scale_factor": scale_factor,
+        }
+
+    logical_w = pixel_w // scale_factor
+    logical_h = pixel_h // scale_factor
+
+    if scale_to_logical and scale_factor > 1:
+        img = img.resize((logical_w, logical_h), Image.Resampling.LANCZOS)
+        needs_save = True
+
+    if max_width and img.size[0] > max_width:
+        ratio = max_width / img.size[0]
+        new_h = int(img.size[1] * ratio)
+        img = img.resize((max_width, new_h), Image.Resampling.LANCZOS)
+        needs_save = True
+
+    if output_format and output_format.lower() in ("jpeg", "jpg"):
+        final_path = str(Path(filename_used).with_suffix(".jpg"))
+        if img.mode == "RGBA":
+            img = img.convert("RGB")
+        img.save(final_path, format="JPEG", quality=quality)
+        needs_save = False
+    elif needs_save:
+        img.save(filename_used)
+
+    return {
+        "success": True,
+        "path": final_path,
+        "scale_factor": scale_factor,
+        "pixel_size": [pixel_w, pixel_h],
+        "logical_size": [logical_w, logical_h],
+    }
 
 
 def screenshot_area(
@@ -941,3 +1210,70 @@ def screenshot_window(
         "mode": "window",
         "include_frame": include_frame,
     }
+
+
+def _child_process_env() -> dict[str, str]:
+    env: dict[str, str] = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(Path.home()),
+    }
+    for key in ("DBUS_SESSION_BUS_ADDRESS", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
+
+
+_VALID_SELECTIONS = ("clipboard", "primary")
+
+
+def clipboard_read(selection: str = "clipboard") -> JsonDict:
+    if selection not in _VALID_SELECTIONS:
+        msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
+        raise ValueError(msg)
+
+    if not shutil.which("wl-paste"):
+        return {"success": False, "error": "wl-paste not found (install wl-clipboard)"}
+
+    cmd = ["wl-paste", "--no-newline", "--type", "text/plain"]
+    if selection == "primary":
+        cmd.append("--primary")
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=False, env=_child_process_env(), timeout=5
+    )
+    if result.returncode != 0:
+        return {"success": True, "text": None, "selection": selection}
+
+    return {"success": True, "text": result.stdout, "selection": selection}
+
+
+def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
+    if selection not in _VALID_SELECTIONS:
+        msg = f"selection must be 'clipboard' or 'primary' (got {selection!r})"
+        raise ValueError(msg)
+
+    if not shutil.which("wl-copy"):
+        return {"success": False, "error": "wl-copy not found (install wl-clipboard)"}
+
+    cmd = ["wl-copy", "--"]
+    if selection == "primary":
+        cmd.insert(1, "--primary")
+
+    result = subprocess.run(
+        cmd,
+        input=text,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_child_process_env(),
+        timeout=5,
+    )
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "error": result.stderr.strip() or "wl-copy failed",
+            "selection": selection,
+        }
+
+    return {"success": True, "text_length": len(text), "selection": selection}
