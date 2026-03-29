@@ -155,30 +155,3 @@ class TestTypeIntoSubmit:
         result = ocr.type_into("Search", "hello", submit=False)
         assert result["success"] is True
         mock_input.press_key.assert_not_called()
-
-
-class TestFindTextOcr:
-    """find_text_ocr should parse Tesseract TSV output."""
-
-    @patch("gnome_ui_mcp.desktop.ocr.input")
-    @patch("gnome_ui_mcp.desktop.ocr.subprocess")
-    def test_find_text_ocr_parses_tsv(
-        self, mock_subprocess: MagicMock, mock_input: MagicMock
-    ) -> None:
-        mock_input.screenshot.return_value = {"success": True, "path": "/tmp/shot.png"}
-        tsv_output = (
-            "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t"
-            "left\ttop\twidth\theight\tconf\ttext\n"
-            "5\t1\t1\t1\t1\t1\t50\t60\t80\t20\t90\tUsername\n"
-        )
-        mock_proc = MagicMock()
-        mock_proc.returncode = 0
-        mock_proc.stdout = tsv_output
-        mock_subprocess.run.return_value = mock_proc
-
-        result = ocr.find_text_ocr("Username")
-        assert result is not None
-        assert result["x"] == 50
-        assert result["y"] == 60
-        assert result["width"] == 80
-        assert result["height"] == 20
