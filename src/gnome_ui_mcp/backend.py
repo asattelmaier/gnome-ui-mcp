@@ -163,6 +163,10 @@ def mouse_move(x: int, y: int) -> JsonDict:
     return input.perform_mouse_move(x=x, y=y)
 
 
+def hover_element(element_id: str) -> JsonDict:
+    return interaction.hover_element(element_id=element_id)
+
+
 def set_element_text(element_id: str, text: str) -> JsonDict:
     return accessibility.set_element_text(element_id=element_id, text=text)
 

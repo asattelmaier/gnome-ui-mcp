@@ -277,6 +277,16 @@ def mouse_move(x: int, y: int) -> CallToolResult:
     return _run_tool(lambda: backend.mouse_move(x=x, y=y))
 
 
+@mcp.tool(
+    description=(
+        "Move the mouse cursor to the center of an element without clicking. "
+        "Useful for triggering hover effects, tooltips, and submenus."
+    )
+)
+def hover_element(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.hover_element(element_id=element_id))
+
+
 @mcp.tool(description="Replace the text contents of an editable element.")
 def set_element_text(element_id: str, text: str) -> CallToolResult:
     return _run_tool(lambda: backend.set_element_text(element_id=element_id, text=text))
