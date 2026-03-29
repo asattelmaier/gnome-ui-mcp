@@ -172,6 +172,15 @@ def scroll(
     )
 
 
+def scroll_smooth(
+    x: int,
+    y: int,
+    dx: float = 0.0,
+    dy: float = 0.0,
+) -> JsonDict:
+    return input.scroll_smooth(x=x, y=y, dx=dx, dy=dy)
+
+
 def drag(
     start_x: int,
     start_y: int,

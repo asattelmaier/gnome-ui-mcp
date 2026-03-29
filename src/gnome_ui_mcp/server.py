@@ -236,6 +236,21 @@ def scroll(
 
 @mcp.tool(
     description=(
+        "Perform smooth (non-discrete) scrolling at a given position. "
+        "Use dx/dy for horizontal/vertical scroll amounts as floating-point values."
+    )
+)
+def scroll_smooth(
+    x: int,
+    y: int,
+    dx: float = 0.0,
+    dy: float = 0.0,
+) -> CallToolResult:
+    return _run_tool(lambda: backend.scroll_smooth(x=x, y=y, dx=dx, dy=dy))
+
+
+@mcp.tool(
+    description=(
         "Move the mouse cursor to absolute screen coordinates without clicking. "
         "Useful for hover effects, tooltips, and drag preparation."
     )
