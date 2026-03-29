@@ -22,6 +22,7 @@ from .desktop import (
     notifications,
     ocr,
     screencast,
+    session,
     snapshots,
     visual,
     vlm,
@@ -727,3 +728,18 @@ def list_key_names(category: str = "all") -> JsonDict:
 
 def get_monitor_for_point(x: int, y: int) -> JsonDict:
     return monitor_point.get_monitor_for_point(x=x, y=y)
+
+
+# Session isolation
+
+
+def session_start(width: int = 1920, height: int = 1080) -> JsonDict:
+    return session.session_start(width=width, height=height)
+
+
+def session_stop() -> JsonDict:
+    return session.session_stop()
+
+
+def session_info() -> JsonDict:
+    return session.session_info()

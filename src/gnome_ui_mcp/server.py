@@ -768,3 +768,26 @@ def list_key_names(
 @mcp.tool(description="Get which monitor contains a screen coordinate.")
 def get_monitor_for_point(x: int, y: int) -> CallToolResult:
     return _run_tool(lambda: backend.get_monitor_for_point(x=x, y=y))
+
+
+# Session isolation
+
+
+@mcp.tool(
+    description=(
+        "Start an isolated GNOME Shell session via gnome-shell --headless. "
+        "Creates a private D-Bus session with its own display and input."
+    )
+)
+def session_start(width: int = 1920, height: int = 1080) -> CallToolResult:
+    return _run_tool(lambda: backend.session_start(width=width, height=height))
+
+
+@mcp.tool(description="Stop the isolated GNOME Shell session.")
+def session_stop() -> CallToolResult:
+    return _run_tool(backend.session_stop)
+
+
+@mcp.tool(description="Get information about the current isolated session.")
+def session_info() -> CallToolResult:
+    return _run_tool(backend.session_info)
