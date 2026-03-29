@@ -262,6 +262,7 @@ def screenshot(
     quality: int = 85,
     max_width: int | None = None,
     scale_to_logical: bool = False,
+    return_base64: bool = False,
 ) -> JsonDict:
     return input.screenshot(
         filename=filename,
@@ -269,6 +270,7 @@ def screenshot(
         quality=quality,
         max_width=max_width,
         scale_to_logical=scale_to_logical,
+        return_base64=return_base64,
     )
 
 
