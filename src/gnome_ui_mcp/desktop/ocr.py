@@ -2,12 +2,29 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytesseract
-from PIL import Image, ImageFilter, ImageOps
-
 from . import input
 
 JsonDict = dict[str, Any]
+
+try:
+    from PIL import Image, ImageFilter, ImageOps
+
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
+
+try:
+    import pytesseract
+
+    _HAS_TESSERACT = True
+except ImportError:
+    _HAS_TESSERACT = False
+
+_HAS_OCR_DEPS = _HAS_PIL and _HAS_TESSERACT
+
+_MISSING_DEPS_ERROR = (
+    "OCR tools require pytesseract and Pillow. Install them with: pip install 'gnome-ui-mcp[ocr]'"
+)
 
 
 def _preprocess_for_ocr(img: Image.Image) -> Image.Image:
@@ -94,6 +111,8 @@ def ocr_screen(
     width: int | None = None,
     height: int | None = None,
 ) -> JsonDict:
+    if not _HAS_OCR_DEPS:
+        return {"success": False, "error": _MISSING_DEPS_ERROR}
     is_region = all(v is not None for v in (x, y, width, height))
     if is_region:
         shot = input.screenshot_area(x, y, width, height)

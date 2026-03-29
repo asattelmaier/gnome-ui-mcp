@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
+PIL = pytest.importorskip("PIL", reason="Pillow not installed")
+pytest.importorskip("numpy", reason="numpy not installed")
+pytest.importorskip("scipy", reason="scipy not installed")
 from PIL import Image
 
 from gnome_ui_mcp.desktop import visual as visual_mod

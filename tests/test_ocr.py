@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
 from PIL import Image
 
 from gnome_ui_mcp.desktop import ocr as ocr_mod
+
+_has_tesseract = ocr_mod._HAS_OCR_DEPS
+_skip_no_tesseract = pytest.mark.skipif(not _has_tesseract, reason="pytesseract not installed")
 
 
 def _make_light_image(width: int = 200, height: int = 50) -> Image.Image:
@@ -97,6 +101,7 @@ class TestFindText:
         assert matches[0]["width"] == 55  # 45 + 20 - 10
 
 
+@_skip_no_tesseract
 class TestOcrScreen:
     def test_returns_words_and_text(self) -> None:
         mock_data = {

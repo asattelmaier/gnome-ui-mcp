@@ -2,16 +2,28 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-from PIL import Image
-from scipy import ndimage
-
 from . import input
 
 JsonDict = dict[str, Any]
 
+try:
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+
+    _HAS_VISUAL_DEPS = True
+except ImportError:
+    _HAS_VISUAL_DEPS = False
+
+_MISSING_DEPS_ERROR = (
+    "Visual tools require numpy, scipy, and Pillow. "
+    "Install them with: pip install 'gnome-ui-mcp[visual]'"
+)
+
 
 def get_pixel_color(x: int, y: int) -> JsonDict:
+    if not _HAS_VISUAL_DEPS:
+        return {"success": False, "error": _MISSING_DEPS_ERROR}
     shot = input.screenshot()
     if not shot.get("success"):
         return {"success": False, "error": f"Screenshot failed: {shot.get('error', 'unknown')}"}
@@ -45,6 +57,8 @@ def get_pixel_color(x: int, y: int) -> JsonDict:
 
 
 def get_region_color(x: int, y: int, width: int, height: int) -> JsonDict:
+    if not _HAS_VISUAL_DEPS:
+        return {"success": False, "error": _MISSING_DEPS_ERROR}
     shot = input.screenshot()
     if not shot.get("success"):
         return {"success": False, "error": f"Screenshot failed: {shot.get('error', 'unknown')}"}
@@ -81,6 +95,8 @@ def visual_diff(
     image_path_2: str,
     threshold: int = 30,
 ) -> JsonDict:
+    if not _HAS_VISUAL_DEPS:
+        return {"success": False, "error": _MISSING_DEPS_ERROR}
     try:
         img1 = Image.open(image_path_1).convert("RGB")
         img2 = Image.open(image_path_2).convert("RGB")
