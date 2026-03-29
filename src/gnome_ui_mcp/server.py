@@ -534,6 +534,80 @@ def wait_for_element_gone(
 
 @mcp.tool(
     description=(
+        "Extract text from the screen or a region using OCR. Use for apps with poor accessibility."
+    )
+)
+def ocr_screen(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> CallToolResult:
+    return _run_tool(lambda: backend.ocr_screen(x=x, y=y, width=width, height=height))
+
+
+@mcp.tool(description="Find text on screen via OCR and return its coordinates.")
+def find_text_ocr(
+    target: str,
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+    )
+
+
+@mcp.tool(description="Find text on screen via OCR and click it.")
+def click_text_ocr(
+    target: str,
+    button: Literal["left", "middle", "right"] = "left",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.click_text_ocr(target=target, button=button))
+
+
+@mcp.tool(description="Read a GNOME setting value.")
+def gsettings_get(schema: str, key: str) -> CallToolResult:
+    return _run_tool(lambda: backend.gsettings_get(schema=schema, key=key))
+
+
+@mcp.tool(description="Write a GNOME setting value.")
+def gsettings_set(schema: str, key: str, value: str | int | float | bool) -> CallToolResult:
+    return _run_tool(lambda: backend.gsettings_set(schema=schema, key=key, value=value))
+
+
+@mcp.tool(description="List all keys in a GSettings schema.")
+def gsettings_list_keys(schema: str) -> CallToolResult:
+    return _run_tool(lambda: backend.gsettings_list_keys(schema=schema))
+
+
+@mcp.tool(description="Reset a GNOME setting to its default value.")
+def gsettings_reset(schema: str, key: str) -> CallToolResult:
+    return _run_tool(lambda: backend.gsettings_reset(schema=schema, key=key))
+
+
+@mcp.tool(description="Get the pixel color at screen coordinates. Takes a screenshot first.")
+def get_pixel_color(x: int, y: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_pixel_color(x=x, y=y))
+
+
+@mcp.tool(description="Get the average color of a screen region.")
+def get_region_color(x: int, y: int, width: int, height: int) -> CallToolResult:
+    return _run_tool(lambda: backend.get_region_color(x=x, y=y, width=width, height=height))
+
+
+@mcp.tool(description="Compare two screenshots and return changed regions.")
+def visual_diff(image_path_1: str, image_path_2: str, threshold: int = 30) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.visual_diff(
+            image_path_1=image_path_1, image_path_2=image_path_2, threshold=threshold
+        )
+    )
+
+
+@mcp.tool(
+    description=(
         "List installed desktop applications available for launching, "
         "optionally filtered by search query."
     )

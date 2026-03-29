@@ -7,10 +7,13 @@ from .desktop import (
     apps,
     dbus,
     display,
+    gsettings,
     input,
     interaction,
     notifications,
+    ocr,
     screencast,
+    visual,
     workspaces,
 )
 
@@ -359,6 +362,59 @@ def wait_for_element_gone(
         bounds_only=bounds_only,
         within_element_id=within_element_id,
         within_popup=within_popup,
+    )
+
+
+def ocr_screen(
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.ocr_screen(x=x, y=y, width=width, height=height)
+
+
+def find_text_ocr(
+    target: str,
+    x: int | None = None,
+    y: int | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> JsonDict:
+    return ocr.find_text_ocr(target=target, x=x, y=y, width=width, height=height)
+
+
+def click_text_ocr(target: str, button: str = "left") -> JsonDict:
+    return ocr.click_text_ocr(target=target, button=button)
+
+
+def gsettings_get(schema: str, key: str) -> JsonDict:
+    return gsettings.gsettings_get(schema=schema, key=key)
+
+
+def gsettings_set(schema: str, key: str, value: object) -> JsonDict:
+    return gsettings.gsettings_set(schema=schema, key=key, value=value)
+
+
+def gsettings_list_keys(schema: str) -> JsonDict:
+    return gsettings.gsettings_list_keys(schema=schema)
+
+
+def gsettings_reset(schema: str, key: str) -> JsonDict:
+    return gsettings.gsettings_reset(schema=schema, key=key)
+
+
+def get_pixel_color(x: int, y: int) -> JsonDict:
+    return visual.get_pixel_color(x=x, y=y)
+
+
+def get_region_color(x: int, y: int, width: int, height: int) -> JsonDict:
+    return visual.get_region_color(x=x, y=y, width=width, height=height)
+
+
+def visual_diff(image_path_1: str, image_path_2: str, threshold: int = 30) -> JsonDict:
+    return visual.visual_diff(
+        image_path_1=image_path_1, image_path_2=image_path_2, threshold=threshold
     )
 
 
