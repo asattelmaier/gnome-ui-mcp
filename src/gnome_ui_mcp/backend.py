@@ -22,6 +22,7 @@ from .desktop import (
     notifications,
     ocr,
     screencast,
+    scroll as scroll_mod,
     session,
     snapshots,
     visual,
@@ -30,9 +31,6 @@ from .desktop import (
     wait_act,
     window_management,
     workspaces,
-)
-from .desktop import (
-    scroll as scroll_mod,
 )
 
 JsonDict = dict[str, object]

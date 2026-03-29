@@ -7,9 +7,8 @@ from unittest.mock import patch
 import pytest
 
 PIL = pytest.importorskip("PIL", reason="Pillow not installed")
-from PIL import Image
-
-from gnome_ui_mcp.desktop import ocr as ocr_mod
+from PIL import Image  # noqa: E402
+from gnome_ui_mcp.desktop import ocr as ocr_mod  # noqa: E402
 
 _has_tesseract = ocr_mod._HAS_OCR_DEPS
 _skip_no_tesseract = pytest.mark.skipif(not _has_tesseract, reason="pytesseract not installed")
