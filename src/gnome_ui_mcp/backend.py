@@ -117,16 +117,33 @@ def click_element(
     click_count: int = 1,
     button: str = "left",
 ) -> JsonDict:
-    return interaction.click_element(
+    result = interaction.click_element(
         element_id=element_id,
         action_name=action_name,
         click_count=click_count,
         button=button,
     )
+    if result.get("success"):
+        history.record_action(
+            "click_element",
+            {
+                "element_id": element_id,
+                "action_name": action_name,
+                "click_count": click_count,
+                "button": button,
+            },
+        )
+    return result
 
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
-    return interaction.activate_element(element_id=element_id, action_name=action_name)
+    result = interaction.activate_element(element_id=element_id, action_name=action_name)
+    if result.get("success"):
+        history.record_action(
+            "activate_element",
+            {"element_id": element_id, "action_name": action_name},
+        )
+    return result
 
 
 def find_and_activate(
@@ -209,7 +226,13 @@ def hover_element(element_id: str) -> JsonDict:
 
 
 def set_element_text(element_id: str, text: str) -> JsonDict:
-    return accessibility.set_element_text(element_id=element_id, text=text)
+    result = accessibility.set_element_text(element_id=element_id, text=text)
+    if result.get("success"):
+        history.record_action(
+            "set_element_text",
+            {"element_id": element_id, "text": text},
+        )
+    return result
 
 
 def select_element_text(
@@ -223,7 +246,10 @@ def select_element_text(
 
 
 def type_text(text: str) -> JsonDict:
-    return input.type_text(text=text)
+    result = input.type_text(text=text)
+    if result.get("success"):
+        history.record_action("type_text", {"text": text})
+    return result
 
 
 def press_key(
@@ -238,7 +264,13 @@ def press_key(
         stable_for_ms=stable_for_ms,
         poll_interval_ms=poll_interval_ms,
     )
-    return interaction.press_key(key_name=key_name, element_id=element_id, opts=opts)
+    result = interaction.press_key(key_name=key_name, element_id=element_id, opts=opts)
+    if result.get("success"):
+        history.record_action(
+            "press_key",
+            {"key_name": key_name, "element_id": element_id},
+        )
+    return result
 
 
 def key_combo(
@@ -253,7 +285,13 @@ def key_combo(
         stable_for_ms=stable_for_ms,
         poll_interval_ms=poll_interval_ms,
     )
-    return interaction.key_combo(combo=combo, element_id=element_id, opts=opts)
+    result = interaction.key_combo(combo=combo, element_id=element_id, opts=opts)
+    if result.get("success"):
+        history.record_action(
+            "key_combo",
+            {"combo": combo, "element_id": element_id},
+        )
+    return result
 
 
 def screenshot(
