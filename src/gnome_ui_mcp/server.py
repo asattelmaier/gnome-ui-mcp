@@ -477,3 +477,98 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(description="Close the currently focused window via Alt+F4.")
+def close_window() -> CallToolResult:
+    return _run_tool(backend.close_window)
+
+
+@mcp.tool(
+    description=(
+        "Move the focused window by a pixel offset using GNOME keyboard move mode "
+        "(Alt+F7 then arrow keys). Each arrow press moves ~10px."
+    )
+)
+def move_window(dx: int, dy: int) -> CallToolResult:
+    return _run_tool(lambda: backend.move_window(dx=dx, dy=dy))
+
+
+@mcp.tool(
+    description=(
+        "Resize the focused window by a pixel delta using GNOME keyboard resize mode "
+        "(Alt+F8 then arrow keys). Each arrow press resizes ~10px."
+    )
+)
+def resize_window(dw: int, dh: int) -> CallToolResult:
+    return _run_tool(lambda: backend.resize_window(dw=dw, dh=dh))
+
+
+@mcp.tool(
+    description=(
+        "Snap the focused window to a screen position. "
+        "Valid positions: maximize, restore, left, right."
+    )
+)
+def snap_window(
+    position: Literal["maximize", "restore", "left", "right"],
+) -> CallToolResult:
+    return _run_tool(lambda: backend.snap_window(position=position))
+
+
+@mcp.tool(
+    description=(
+        "Toggle a window state. "
+        "Valid states: fullscreen (F11), maximize (Alt+F10), minimize (Super+h)."
+    )
+)
+def toggle_window_state(
+    state: Literal["fullscreen", "maximize", "minimize"],
+) -> CallToolResult:
+    return _run_tool(lambda: backend.toggle_window_state(state=state))
+
+
+@mcp.tool(
+    description=(
+        "Find an input field by label text (AT-SPI first, OCR fallback) and type text into it. "
+        "Optionally press Return to submit."
+    )
+)
+def type_into(label: str, text: str, submit: bool = False) -> CallToolResult:
+    return _run_tool(lambda: backend.type_into(label=label, text=text, submit=submit))
+
+
+@mcp.tool(
+    description=(
+        "Take a screenshot and send it to a Vision Language Model for analysis. "
+        "Providers: openrouter (default), anthropic, ollama."
+    )
+)
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+    )
+
+
+@mcp.tool(
+    description=(
+        "Compare two screenshot images using a Vision Language Model. "
+        "Describe differences between the screenshots."
+    )
+)
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.compare_screenshots(
+            path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
+        )
+    )

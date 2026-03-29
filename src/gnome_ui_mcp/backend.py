@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from .desktop import accessibility, input, interaction
+from .desktop import accessibility, input, interaction, ocr, vlm, window_management
 
 JsonDict = dict[str, object]
 
@@ -317,4 +317,48 @@ def wait_for_element_gone(
         bounds_only=bounds_only,
         within_element_id=within_element_id,
         within_popup=within_popup,
+    )
+
+
+def close_window() -> JsonDict:
+    return window_management.close_window()
+
+
+def move_window(dx: int, dy: int) -> JsonDict:
+    return window_management.move_window(dx=dx, dy=dy)
+
+
+def resize_window(dw: int, dh: int) -> JsonDict:
+    return window_management.resize_window(dw=dw, dh=dh)
+
+
+def snap_window(position: str) -> JsonDict:
+    return window_management.snap_window(position=position)
+
+
+def toggle_window_state(state: str) -> JsonDict:
+    return window_management.toggle_window_state(state=state)
+
+
+def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
+    return ocr.type_into(label=label, text=text, submit=submit)
+
+
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+
+
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.compare_screenshots(
+        path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
     )
