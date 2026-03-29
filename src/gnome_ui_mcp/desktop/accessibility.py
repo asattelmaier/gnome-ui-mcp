@@ -233,34 +233,64 @@ def _serialize_tree(
     max_depth: int,
     include_actions: bool,
     include_text: bool,
-) -> JsonDict:
-    node = _element_summary(
-        accessible,
-        path,
-        include_actions=include_actions,
-        include_text=include_text,
-    )
-    node["children"] = []
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
+) -> JsonDict | None:
+    # Check filters before building the node
+    role_name = _safe_call(accessible.get_role_name, "")
+    states = _element_states(accessible)
 
-    if depth >= max_depth:
-        return node
+    if showing_only and "showing" not in states:
+        return None
+    if filter_roles and role_name not in filter_roles:
+        # Still recurse into children in case they match
+        pass
+    if filter_states:
+        if not all(s in states for s in filter_states):
+            # Still recurse, but mark this node as filtered
+            pass
 
-    child_count = _safe_call(accessible.get_child_count, 0) or 0
-    for index in range(child_count):
-        child = _safe_call(lambda idx=index: accessible.get_child_at_index(idx))
-        if child is None:
-            continue
-        node["children"].append(
-            _serialize_tree(
+    # Determine if this node itself passes filters
+    passes_role = not filter_roles or role_name in filter_roles
+    passes_states = not filter_states or all(s in states for s in filter_states)
+    passes_showing = not showing_only or "showing" in states
+    node_passes = passes_role and passes_states and passes_showing
+
+    # Recurse into children
+    children: list[JsonDict] = []
+    if depth < max_depth:
+        child_count = _safe_call(accessible.get_child_count, 0) or 0
+        for index in range(child_count):
+            child = _safe_call(lambda idx=index: accessible.get_child_at_index(idx))
+            if child is None:
+                continue
+            child_node = _serialize_tree(
                 child,
                 path + (index,),
                 depth=depth + 1,
                 max_depth=max_depth,
                 include_actions=include_actions,
                 include_text=include_text,
+                filter_roles=filter_roles,
+                filter_states=filter_states,
+                showing_only=showing_only,
             )
-        )
+            if child_node is not None:
+                children.append(child_node)
 
+    # If this node doesn't pass but has matching descendants, include it as a
+    # structural ancestor; if it has no matching descendants, prune it entirely.
+    if not node_passes and not children:
+        return None
+
+    node = _element_summary(
+        accessible,
+        path,
+        include_actions=include_actions,
+        include_text=include_text,
+    )
+    node["children"] = children
     return node
 
 
@@ -653,26 +683,32 @@ def accessibility_tree(
     max_depth: int = 4,
     include_actions: bool = False,
     include_text: bool = False,
+    filter_roles: list[str] | None = None,
+    filter_states: list[str] | None = None,
+    showing_only: bool = False,
 ) -> JsonDict:
     roots = _select_applications(app_name)
     if not roots:
         error = f"No application matched {app_name!r}" if app_name else "No applications found"
         return {"success": False, "error": error}
 
-    return {
-        "success": True,
-        "trees": [
-            _serialize_tree(
-                app,
-                path,
-                depth=0,
-                max_depth=max_depth,
-                include_actions=include_actions,
-                include_text=include_text,
-            )
-            for app, path in roots
-        ],
-    }
+    trees: list[JsonDict] = []
+    for app, path in roots:
+        tree = _serialize_tree(
+            app,
+            path,
+            depth=0,
+            max_depth=max_depth,
+            include_actions=include_actions,
+            include_text=include_text,
+            filter_roles=filter_roles,
+            filter_states=filter_states,
+            showing_only=showing_only,
+        )
+        if tree is not None:
+            trees.append(tree)
+
+    return {"success": True, "trees": trees}
 
 
 def find_elements(
@@ -1049,3 +1085,276 @@ def wait_for_element_gone(
         "query": query,
         "last_match": last_match,
     }
+
+
+# ---------------------------------------------------------------------------
+# Item 1: get_focused_element
+# ---------------------------------------------------------------------------
+
+
+def get_focused_element(*, max_depth: int = 16) -> JsonDict:
+    """Return the currently focused element wrapped in a success envelope."""
+    element = current_focus_metadata(max_depth=max_depth)
+    return {"success": True, "element": element}
+
+
+# ---------------------------------------------------------------------------
+# Item 2: get_element_properties
+# ---------------------------------------------------------------------------
+
+
+def get_element_properties(element_id: str) -> JsonDict:
+    """Return extended AT-SPI properties for an element."""
+    accessible = _resolve_element(element_id)
+
+    # Value interface
+    value_iface = _safe_call(accessible.get_value_iface)
+    value_data: JsonDict | None = None
+    if value_iface is not None:
+        value_data = {
+            "current": _safe_call(value_iface.get_current_value, 0.0),
+            "minimum": _safe_call(value_iface.get_minimum_value, 0.0),
+            "maximum": _safe_call(value_iface.get_maximum_value, 0.0),
+            "step": _safe_call(value_iface.get_minimum_increment, 0.0),
+        }
+
+    # Selection interface
+    sel_iface = _safe_call(accessible.get_selection_iface)
+    selection_data: JsonDict | None = None
+    if sel_iface is not None:
+        n_selected = _safe_call(sel_iface.get_n_selected_children, 0) or 0
+        selected_children: list[JsonDict] = []
+        for i in range(n_selected):
+            child = _safe_call(lambda idx=i: sel_iface.get_selected_child(idx))
+            if child is not None:
+                selected_children.append(
+                    {
+                        "name": _safe_call(child.get_name, ""),
+                        "role": _safe_call(child.get_role_name, ""),
+                    }
+                )
+        selection_data = {
+            "n_selected": n_selected,
+            "selected_children": selected_children,
+        }
+
+    # Relations
+    relation_set = _safe_call(accessible.get_relation_set, []) or []
+    relations: list[JsonDict] = []
+    for rel in relation_set:
+        rel_type = _safe_call(rel.get_relation_type)
+        type_name = _safe_call(lambda rt=rel_type: rt.value_nick, "") if rel_type else ""
+        n_targets = _safe_call(rel.get_n_targets, 0) or 0
+        targets: list[JsonDict] = []
+        for j in range(n_targets):
+            target = _safe_call(lambda idx=j, r=rel: r.get_target(idx))
+            if target is not None:
+                targets.append(
+                    {
+                        "name": _safe_call(target.get_name, ""),
+                        "role": _safe_call(target.get_role_name, ""),
+                    }
+                )
+        relations.append({"type": type_name, "targets": targets})
+
+    # Attributes
+    attributes = _safe_call(accessible.get_attributes, {}) or {}
+
+    # Image interface
+    img_iface = _safe_call(accessible.get_image_iface)
+    image_data: JsonDict | None = None
+    if img_iface is not None:
+        img_size = _safe_call(img_iface.get_image_size)
+        image_data = {
+            "description": _safe_call(img_iface.get_image_description, ""),
+            "width": int(img_size.x) if img_size else 0,
+            "height": int(img_size.y) if img_size else 0,
+        }
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "value": value_data,
+        "selection": selection_data,
+        "relations": relations,
+        "attributes": dict(attributes),
+        "image": image_data,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Item 3: get_element_text
+# ---------------------------------------------------------------------------
+
+
+def get_element_text(element_id: str) -> JsonDict:
+    """Return detailed text information for an element."""
+    accessible = _resolve_element(element_id)
+    text_iface = _safe_call(accessible.get_text_iface)
+    if text_iface is None:
+        return {"success": False, "error": "Element does not support the Text interface"}
+
+    char_count = _safe_call(text_iface.get_character_count, 0) or 0
+    text = _safe_call(lambda: text_iface.get_text(0, char_count), "") if char_count > 0 else ""
+    caret_offset = _safe_call(text_iface.get_caret_offset, 0) or 0
+
+    # Selections
+    n_selections = _safe_call(text_iface.get_n_selections, 0) or 0
+    selections: list[JsonDict] = []
+    for i in range(n_selections):
+        sel_range = _safe_call(lambda idx=i: text_iface.get_selection(idx))
+        if sel_range is not None:
+            selections.append(
+                {
+                    "start": sel_range.start_offset,
+                    "end": sel_range.end_offset,
+                }
+            )
+
+    # Attributes at caret
+    attr_result = _safe_call(lambda: text_iface.get_text_attributes(caret_offset))
+    if attr_result is not None:
+        attrs, attr_start, attr_end = attr_result
+        attributes_at_caret: JsonDict = {
+            "attributes": dict(attrs) if attrs else {},
+            "start": attr_start,
+            "end": attr_end,
+        }
+    else:
+        attributes_at_caret = {"attributes": {}, "start": 0, "end": 0}
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "text": text,
+        "character_count": char_count,
+        "caret_offset": caret_offset,
+        "n_selections": n_selections,
+        "selections": selections,
+        "attributes_at_caret": attributes_at_caret,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Item 4: get_table_info / get_table_cell
+# ---------------------------------------------------------------------------
+
+
+def get_table_info(element_id: str) -> JsonDict:
+    """Return table dimensions, headers, and caption."""
+    accessible = _resolve_element(element_id)
+    table_iface = _safe_call(accessible.get_table_iface)
+    if table_iface is None:
+        return {"success": False, "error": "Element does not support the Table interface"}
+
+    n_rows = _safe_call(table_iface.get_n_rows, 0) or 0
+    n_cols = _safe_call(table_iface.get_n_columns, 0) or 0
+
+    headers: list[str] = []
+    for col in range(n_cols):
+        header = _safe_call(lambda c=col: table_iface.get_column_header(c))
+        headers.append(_safe_call(header.get_name, "") if header else "")
+
+    caption_acc = _safe_call(table_iface.get_caption)
+    caption = _safe_call(caption_acc.get_name, "") if caption_acc else None
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "n_rows": n_rows,
+        "n_columns": n_cols,
+        "headers": headers,
+        "caption": caption,
+    }
+
+
+def get_table_cell(element_id: str, row: int, col: int) -> JsonDict:
+    """Return info about a specific table cell."""
+    accessible = _resolve_element(element_id)
+    table_iface = _safe_call(accessible.get_table_iface)
+    if table_iface is None:
+        return {"success": False, "error": "Element does not support the Table interface"}
+
+    n_rows = _safe_call(table_iface.get_n_rows, 0) or 0
+    n_cols = _safe_call(table_iface.get_n_columns, 0) or 0
+
+    if row < 0 or row >= n_rows or col < 0 or col >= n_cols:
+        return {
+            "success": False,
+            "error": (
+                f"Cell ({row}, {col}) is out of range for table "
+                f"with {n_rows} rows and {n_cols} columns"
+            ),
+        }
+
+    cell = _safe_call(lambda: table_iface.get_accessible_at(row, col))
+    if cell is None:
+        return {"success": False, "error": f"Could not access cell at ({row}, {col})"}
+
+    return {
+        "success": True,
+        "element_id": element_id,
+        "row": row,
+        "col": col,
+        "cell": {
+            "name": _safe_call(cell.get_name, ""),
+            "role": _safe_call(cell.get_role_name, ""),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Item 5: get_element_path
+# ---------------------------------------------------------------------------
+
+
+def get_element_path(element_id: str) -> JsonDict:
+    """Return the ancestry chain from root to the given element."""
+    try:
+        path_indices = _id_to_path(element_id)
+    except ValueError:
+        return {"success": False, "error": f"Invalid element_id: {element_id}"}
+
+    ancestry: list[JsonDict] = []
+    current = _desktop()
+
+    for depth, index in enumerate(path_indices):
+        current = _safe_call(lambda node=current, idx=index: node.get_child_at_index(idx))
+        if current is None:
+            prefix = _path_to_id(path_indices[: depth + 1])
+            return {
+                "success": False,
+                "error": f"Element not found at path prefix: {prefix}",
+            }
+        prefix_id = _path_to_id(path_indices[: depth + 1])
+        ancestry.append(
+            {
+                "id": prefix_id,
+                "name": _safe_call(current.get_name, ""),
+                "role": _safe_call(current.get_role_name, ""),
+            }
+        )
+
+    return {"success": True, "element_id": element_id, "path": ancestry}
+
+
+# ---------------------------------------------------------------------------
+# Item 6: get_elements_by_ids
+# ---------------------------------------------------------------------------
+
+
+def get_elements_by_ids(element_ids: list[str]) -> JsonDict:
+    """Resolve multiple element IDs in one call, tracking missing ones."""
+    elements: list[JsonDict] = []
+    missing: list[str] = []
+
+    for eid in element_ids:
+        try:
+            accessible = _resolve_element(eid)
+            path = tuple(_id_to_path(eid))
+            summary = _element_summary(accessible, path)
+            elements.append(summary)
+        except Exception:
+            missing.append(eid)
+
+    return {"success": True, "elements": elements, "missing": missing}
