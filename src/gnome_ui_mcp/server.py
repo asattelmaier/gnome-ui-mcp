@@ -313,9 +313,28 @@ def key_combo(
     )
 
 
-@mcp.tool(description="Capture the current GNOME desktop to a PNG file.")
-def screenshot(filename: str | None = None) -> CallToolResult:
-    return _run_tool(lambda: backend.screenshot(filename=filename))
+@mcp.tool(
+    description=(
+        "Capture the current GNOME desktop. Returns path, scale factor, "
+        "pixel size, and logical size. Supports JPEG output and resize."
+    )
+)
+def screenshot(
+    filename: str | None = None,
+    output_format: str | None = None,
+    quality: int = 85,
+    max_width: int | None = None,
+    scale_to_logical: bool = False,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.screenshot(
+            filename=filename,
+            output_format=output_format,
+            quality=quality,
+            max_width=max_width,
+            scale_to_logical=scale_to_logical,
+        )
+    )
 
 
 @mcp.tool(description="Capture a rectangular region of the screen to a PNG file.")
