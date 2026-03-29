@@ -14,6 +14,7 @@ from .desktop import (
     notifications,
     ocr,
     screencast,
+    session,
     visual,
     vlm,
     wayland_info,
@@ -571,3 +572,15 @@ def compare_screenshots(
     return vlm.compare_screenshots(
         path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
     )
+
+
+def session_start(width: int = 1920, height: int = 1080) -> JsonDict:
+    return session.session_start(width=width, height=height)
+
+
+def session_stop() -> JsonDict:
+    return session.session_stop()
+
+
+def session_info() -> JsonDict:
+    return session.session_info()
