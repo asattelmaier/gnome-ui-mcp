@@ -22,15 +22,17 @@ from .desktop import (
     notifications,
     ocr,
     screencast,
-    scroll as scroll_mod,
     session,
     snapshots,
     visual,
     vlm,
-    wayland_info,
     wait_act,
+    wayland_info,
     window_management,
     workspaces,
+)
+from .desktop import (
+    scroll as scroll_mod,
 )
 
 JsonDict = dict[str, object]
