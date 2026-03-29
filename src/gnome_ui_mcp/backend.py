@@ -15,7 +15,9 @@ from .desktop import (
     ocr,
     screencast,
     visual,
+    vlm,
     wayland_info,
+    window_management,
     workspaces,
 )
 
@@ -513,3 +515,47 @@ def launch_with_logging(command: str) -> JsonDict:
 
 def read_app_log(pid: int, last_n_lines: int = 0) -> JsonDict:
     return app_log.read_app_log(pid=pid, last_n_lines=last_n_lines)
+
+
+def close_window() -> JsonDict:
+    return window_management.close_window()
+
+
+def move_window(dx: int, dy: int) -> JsonDict:
+    return window_management.move_window(dx=dx, dy=dy)
+
+
+def resize_window(dw: int, dh: int) -> JsonDict:
+    return window_management.resize_window(dw=dw, dh=dh)
+
+
+def snap_window(position: str) -> JsonDict:
+    return window_management.snap_window(position=position)
+
+
+def toggle_window_state(state: str) -> JsonDict:
+    return window_management.toggle_window_state(state=state)
+
+
+def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
+    return ocr.type_into(label=label, text=text, submit=submit)
+
+
+def analyze_screenshot(
+    prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.analyze_screenshot(prompt=prompt, provider=provider, model=model)
+
+
+def compare_screenshots(
+    path1: str,
+    path2: str,
+    prompt: str | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
+) -> JsonDict:
+    return vlm.compare_screenshots(
+        path1=path1, path2=path2, prompt=prompt, provider=provider, model=model
+    )

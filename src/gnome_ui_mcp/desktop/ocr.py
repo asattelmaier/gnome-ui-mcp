@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import input
+from . import accessibility, input, interaction
 
 JsonDict = dict[str, Any]
 
@@ -179,8 +179,70 @@ def click_text_ocr(target: str, button: str = "left") -> JsonDict:
         return {"success": False, "error": f"Text {target!r} not found on screen"}
 
     match = matches[0]
-    from . import interaction
-
     click_result = interaction.click_at(x=match["center_x"], y=match["center_y"], button=button)
     click_result["ocr_match"] = match
     return click_result
+
+
+def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
+    """Find an input field by label and type text into it.
+
+    Strategy:
+    1. **AT-SPI first** -- search for visible elements matching label, filter
+       for those with an "editable" state, focus it and type.
+    2. **OCR fallback** -- use find_text_ocr to locate the label on screen,
+       click its center, then type.
+    3. If submit is True, press Return after typing.
+    """
+    # --- AT-SPI path ---
+    search = accessibility.find_elements(query=label, showing_only=True)
+    editable_match: JsonDict | None = None
+    for match in search.get("matches", []):
+        if "editable" in match.get("states", []):
+            editable_match = match
+            break
+
+    if editable_match is not None:
+        accessibility.focus_element(str(editable_match["id"]))
+        input.type_text(text)
+        if submit:
+            input.press_key("Return")
+        return {
+            "success": True,
+            "method": "atspi",
+            "label": label,
+            "element_id": editable_match["id"],
+        }
+
+    # --- OCR fallback ---
+    ocr_result = find_text_ocr(label)
+    if not ocr_result:
+        return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
+
+    # Handle both old bbox format (x, y, width, height) and new format (success, matches)
+    if isinstance(ocr_result, dict) and "success" in ocr_result:
+        # New format from pytesseract-based find_text_ocr
+        if not ocr_result.get("success"):
+            return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
+        matches = ocr_result.get("matches", [])
+        if not matches:
+            return {"success": False, "error": f"Label {label!r} not found via OCR"}
+        match = matches[0]
+        center_x = match["center_x"]
+        center_y = match["center_y"]
+    elif isinstance(ocr_result, dict) and "x" in ocr_result:
+        # Old format: simple bounding box dict
+        center_x = ocr_result["x"] + ocr_result["width"] // 2
+        center_y = ocr_result["y"] + ocr_result["height"] // 2
+    else:
+        return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
+
+    interaction.click_at(x=center_x, y=center_y)
+    input.type_text(text)
+    if submit:
+        input.press_key("Return")
+    return {
+        "success": True,
+        "method": "ocr",
+        "label": label,
+    }
