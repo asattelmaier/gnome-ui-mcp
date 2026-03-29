@@ -4,6 +4,7 @@ import time
 
 from .desktop import (
     accessibility,
+    apps,
     dbus,
     display,
     input,
@@ -140,8 +141,40 @@ def scroll(
     )
 
 
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: str = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> JsonDict:
+    return input.perform_drag(
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        button=button,
+        steps=steps,
+        duration_ms=duration_ms,
+    )
+
+
+def clipboard_read(selection: str = "clipboard") -> JsonDict:
+    return input.clipboard_read(selection=selection)
+
+
+def clipboard_write(text: str, selection: str = "clipboard") -> JsonDict:
+    return input.clipboard_write(text=text, selection=selection)
+
+
 def mouse_move(x: int, y: int) -> JsonDict:
     return input.perform_mouse_move(x=x, y=y)
+
+
+def hover_element(element_id: str) -> JsonDict:
+    return interaction.hover_element(element_id=element_id)
 
 
 def set_element_text(element_id: str, text: str) -> JsonDict:
@@ -327,6 +360,20 @@ def wait_for_element_gone(
         within_element_id=within_element_id,
         within_popup=within_popup,
     )
+
+
+def list_desktop_apps(
+    query: str = "",
+    include_hidden: bool = False,
+    max_results: int = 50,
+) -> JsonDict:
+    return apps.list_desktop_apps(
+        query=query, include_hidden=include_hidden, max_results=max_results
+    )
+
+
+def launch_app(desktop_id: str) -> JsonDict:
+    return apps.launch_app(desktop_id=desktop_id)
 
 
 def dbus_call(

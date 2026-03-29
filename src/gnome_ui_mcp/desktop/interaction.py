@@ -638,6 +638,30 @@ def key_combo(
     return result
 
 
+def hover_element(element_id: str) -> JsonDict:
+    try:
+        accessible = accessibility._resolve_element(element_id)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
+
+    bounds = accessibility._element_bounds(accessible)
+    center = accessibility._center(bounds)
+    if center is None:
+        return {
+            "success": False,
+            "error": "Element has no computable bounds for hover",
+            "element_id": element_id,
+        }
+
+    move_result = input.perform_mouse_move(center[0], center[1])
+    move_result["element_id"] = element_id
+    move_result["x"] = center[0]
+    move_result["y"] = center[1]
+    move_result["bounds"] = bounds
+    move_result["effect_verified"] = None
+    return move_result
+
+
 def click_at(x: int, y: int, button: str = "left", click_count: int = 1) -> JsonDict:
     point_match = accessibility.element_at_point(x=x, y=y, include_click_target=True)
     target_id = accessibility._safe_call(lambda: point_match["match"]["click_target"]["target_id"])

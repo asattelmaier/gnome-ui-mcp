@@ -226,12 +226,65 @@ def scroll(
 
 @mcp.tool(
     description=(
+        "Drag from one screen position to another by pressing a mouse button, "
+        "moving through intermediate positions, and releasing."
+    )
+)
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: Literal["left", "middle", "right"] = "left",
+    steps: int = 10,
+    duration_ms: int = 300,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.drag(
+            start_x=start_x,
+            start_y=start_y,
+            end_x=end_x,
+            end_y=end_y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+        )
+    )
+
+
+@mcp.tool(description="Read text from the system clipboard or primary selection.")
+def clipboard_read(
+    selection: Literal["clipboard", "primary"] = "clipboard",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.clipboard_read(selection=selection))
+
+
+@mcp.tool(description="Write text to the system clipboard or primary selection.")
+def clipboard_write(
+    text: str,
+    selection: Literal["clipboard", "primary"] = "clipboard",
+) -> CallToolResult:
+    return _run_tool(lambda: backend.clipboard_write(text=text, selection=selection))
+
+
+@mcp.tool(
+    description=(
         "Move the mouse cursor to absolute screen coordinates without clicking. "
         "Useful for hover effects, tooltips, and drag preparation."
     )
 )
 def mouse_move(x: int, y: int) -> CallToolResult:
     return _run_tool(lambda: backend.mouse_move(x=x, y=y))
+
+
+@mcp.tool(
+    description=(
+        "Move the mouse cursor to the center of an element without clicking. "
+        "Useful for triggering hover effects, tooltips, and submenus."
+    )
+)
+def hover_element(element_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.hover_element(element_id=element_id))
 
 
 @mcp.tool(description="Replace the text contents of an editable element.")
@@ -477,6 +530,29 @@ def wait_for_element_gone(
             within_popup=within_popup,
         )
     )
+
+
+@mcp.tool(
+    description=(
+        "List installed desktop applications available for launching, "
+        "optionally filtered by search query."
+    )
+)
+def list_desktop_apps(
+    query: str = "",
+    include_hidden: bool = False,
+    max_results: int = 50,
+) -> CallToolResult:
+    return _run_tool(
+        lambda: backend.list_desktop_apps(
+            query=query, include_hidden=include_hidden, max_results=max_results
+        )
+    )
+
+
+@mcp.tool(description="Launch a desktop application by its .desktop file ID.")
+def launch_app(desktop_id: str) -> CallToolResult:
+    return _run_tool(lambda: backend.launch_app(desktop_id=desktop_id))
 
 
 @mcp.tool(description="Call any D-Bus method on the session bus. Returns the unpacked result.")
