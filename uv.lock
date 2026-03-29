@@ -182,6 +182,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+hidpi = [
+    { name = "pillow" },
+]
 ocr = [
     { name = "pillow" },
     { name = "pytesseract" },
@@ -202,12 +205,13 @@ dev = [
 requires-dist = [
     { name = "mcp", specifier = ">=1.26.0,<2" },
     { name = "numpy", marker = "extra == 'visual'", specifier = ">=1.26" },
+    { name = "pillow", marker = "extra == 'hidpi'", specifier = ">=10.0" },
     { name = "pillow", marker = "extra == 'ocr'", specifier = ">=10.0" },
     { name = "pillow", marker = "extra == 'visual'", specifier = ">=10.0" },
     { name = "pytesseract", marker = "extra == 'ocr'", specifier = ">=0.3" },
     { name = "scipy", marker = "extra == 'visual'", specifier = ">=1.12" },
 ]
-provides-extras = ["ocr", "visual"]
+provides-extras = ["hidpi", "ocr", "visual"]
 
 [package.metadata.requires-dev]
 dev = [
