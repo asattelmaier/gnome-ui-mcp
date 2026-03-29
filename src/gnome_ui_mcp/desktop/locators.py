@@ -3,6 +3,8 @@ from __future__ import annotations
 from .types import JsonDict, Locator
 
 RECENT_LOCATORS: dict[str, Locator] = {}
+_MAX_LOCATORS = 5000
+_EVICT_COUNT = 1000
 
 
 def _clean_locator_value(value: str | None) -> str | None:
@@ -38,6 +40,10 @@ def remember_locator(element_id: str, locator: Locator) -> None:
     if not (locator.query or locator.role):
         return
     RECENT_LOCATORS[element_id] = locator
+    if len(RECENT_LOCATORS) > _MAX_LOCATORS:
+        keys = list(RECENT_LOCATORS)[:_EVICT_COUNT]
+        for k in keys:
+            del RECENT_LOCATORS[k]
 
 
 def locator_for_element_id(element_id: str) -> Locator | None:

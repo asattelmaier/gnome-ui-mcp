@@ -104,3 +104,12 @@ class TestLocatorCache:
     def test_empty_locator_not_stored(self) -> None:
         remember_locator("0/3", Locator())
         assert locator_for_element_id("0/3") is None
+
+    def test_cache_bounded_after_many_inserts(self) -> None:
+        """RECENT_LOCATORS must not grow without limit."""
+        from gnome_ui_mcp.desktop import locators as loc_mod
+
+        loc_mod.RECENT_LOCATORS.clear()
+        for i in range(6000):
+            remember_locator(f"elem/{i}", Locator(query=f"q{i}", role="button"))
+        assert len(loc_mod.RECENT_LOCATORS) <= 5000
