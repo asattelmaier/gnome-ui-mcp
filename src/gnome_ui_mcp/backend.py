@@ -610,6 +610,14 @@ def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
     return accessibility.set_toggle_state(element_id=element_id, desired_state=desired_state)
 
 
+def expand_node(element_id: str) -> JsonDict:
+    return accessibility.expand_node(element_id=element_id)
+
+
+def collapse_node(element_id: str) -> JsonDict:
+    return accessibility.collapse_node(element_id=element_id)
+
+
 def get_focused_element() -> JsonDict:
     return accessibility.get_focused_element()
 

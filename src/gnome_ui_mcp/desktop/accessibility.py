@@ -1160,6 +1160,16 @@ def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
     current_active = _is_active_toggle(states)
 
     if current_active == desired_state:
+# expand_node / collapse_node
+# ---------------------------------------------------------------------------
+
+
+def expand_node(element_id: str) -> JsonDict:
+    """Expand a tree/expander node if it is currently collapsed."""
+    accessible = _resolve_element(element_id)
+    states = _element_states(accessible)
+
+    if "expanded" in states:
         return {
             "success": True,
             "element_id": element_id,
@@ -1172,6 +1182,16 @@ def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
         return {
             "success": False,
             "error": "Element has no toggle action available",
+            "state": "expanded",
+        }
+
+    action_index = _find_action_index(accessible, "expand or activate")
+    if action_index is None:
+        action_index = _find_action_index(accessible, None)
+    if action_index is None:
+        return {
+            "success": False,
+            "error": "Element has no expand action available",
             "element_id": element_id,
         }
 
@@ -1184,6 +1204,39 @@ def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
         "element_id": element_id,
         "toggled": True,
         "new_active": new_active,
+        "state": "expanded",
+    }
+
+
+def collapse_node(element_id: str) -> JsonDict:
+    """Collapse a tree/expander node if it is currently expanded."""
+    accessible = _resolve_element(element_id)
+    states = _element_states(accessible)
+
+    if "expanded" not in states:
+        return {
+            "success": True,
+            "element_id": element_id,
+            "toggled": False,
+            "state": "collapsed",
+        }
+
+    action_index = _find_action_index(accessible, "expand or activate")
+    if action_index is None:
+        action_index = _find_action_index(accessible, None)
+    if action_index is None:
+        return {
+            "success": False,
+            "error": "Element has no collapse action available",
+            "element_id": element_id,
+        }
+
+    accessible.do_action(action_index)
+    return {
+        "success": True,
+        "element_id": element_id,
+        "toggled": True,
+        "state": "collapsed",
     }
 
 
