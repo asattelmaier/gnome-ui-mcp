@@ -205,6 +205,22 @@ def mouse_move(x: int, y: int) -> JsonDict:
     return input.perform_mouse_move(x=x, y=y)
 
 
+def mouse_move_smooth(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    duration_ms: int = 300,
+) -> JsonDict:
+    return input.mouse_move_smooth(
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        duration_ms=duration_ms,
+    )
+
+
 def hover_element(element_id: str) -> JsonDict:
     return interaction.hover_element(element_id=element_id)
 
