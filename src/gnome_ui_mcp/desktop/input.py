@@ -1269,7 +1269,10 @@ def screenshot(
     quality: int = 85,
     max_width: int | None = None,
     scale_to_logical: bool = False,
+    return_base64: bool = False,
 ) -> JsonDict:
+    import base64 as _base64
+
     try:
         output = _validate_screenshot_path(filename)
     except ValueError as exc:
@@ -1305,11 +1308,15 @@ def screenshot(
     else:
         # Without PIL, we can't open the image to get dimensions
         # Return basic info without pixel dimensions
-        return {
+        result: JsonDict = {
             "success": True,
             "path": final_path,
             "scale_factor": scale_factor,
         }
+        if return_base64:
+            with open(final_path, "rb") as f:
+                result["image_base64"] = _base64.b64encode(f.read()).decode("ascii")
+        return result
 
     logical_w = pixel_w // scale_factor
     logical_h = pixel_h // scale_factor
@@ -1333,13 +1340,19 @@ def screenshot(
     elif needs_save:
         img.save(filename_used)
 
-    return {
+    result = {
         "success": True,
         "path": final_path,
         "scale_factor": scale_factor,
         "pixel_size": [pixel_w, pixel_h],
         "logical_size": [logical_w, logical_h],
     }
+
+    if return_base64:
+        with open(final_path, "rb") as f:
+            result["image_base64"] = _base64.b64encode(f.read()).decode("ascii")
+
+    return result
 
 
 def screenshot_area(

@@ -382,9 +382,17 @@ def key_combo(
     )
 
 
-@mcp.tool(description="Capture the current GNOME desktop to a PNG file.")
-def screenshot(filename: str | None = None) -> CallToolResult:
-    return _run_tool(lambda: backend.screenshot(filename=filename))
+@mcp.tool(
+    description=(
+        "Capture the current GNOME desktop to a PNG file. "
+        "Optionally return the image as a base64-encoded string."
+    )
+)
+def screenshot(
+    filename: str | None = None,
+    return_base64: bool = False,
+) -> CallToolResult:
+    return _run_tool(lambda: backend.screenshot(filename=filename, return_base64=return_base64))
 
 
 @mcp.tool(description="Capture a rectangular region of the screen to a PNG file.")
