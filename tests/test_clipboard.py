@@ -66,11 +66,11 @@ class TestClipboardRead:
 
 class TestClipboardWrite:
     def test_write_success(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result),
+            patch.object(subprocess, "Popen", return_value=mock_proc),
         ):
             result = input_mod.clipboard_write("hello")
 
@@ -78,16 +78,29 @@ class TestClipboardWrite:
         assert result["text_length"] == 5
         assert result["selection"] == "clipboard"
 
-    def test_write_primary_selection(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+    def test_write_does_not_block(self) -> None:
+        """wl-copy is launched via Popen so clipboard_write never blocks."""
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(subprocess, "Popen", return_value=mock_proc) as mock_popen,
+        ):
+            result = input_mod.clipboard_write("data")
+
+        assert result["success"] is True
+        mock_popen.assert_called_once()
+
+    def test_write_primary_selection(self) -> None:
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
+        with (
+            patch("shutil.which", return_value="/usr/bin/wl-copy"),
+            patch.object(subprocess, "Popen", return_value=mock_proc) as mock_popen,
         ):
             result = input_mod.clipboard_write("text", selection="primary")
 
-        cmd = mock_run.call_args.args[0]
+        cmd = mock_popen.call_args.args[0]
         assert "--primary" in cmd
         assert result["selection"] == "primary"
 
@@ -103,11 +116,11 @@ class TestClipboardWrite:
         assert "wl-copy" in result["error"]
 
     def test_write_empty_string(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result),
+            patch.object(subprocess, "Popen", return_value=mock_proc),
         ):
             result = input_mod.clipboard_write("")
 

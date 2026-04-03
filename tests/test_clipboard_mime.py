@@ -62,15 +62,15 @@ class TestClipboardReadMime:
 
 class TestClipboardWriteMime:
     def test_write_custom_mime_text(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(subprocess, "Popen", return_value=mock_proc) as mock_popen,
         ):
             result = input_mod.clipboard_write("<b>bold</b>", mime_type="text/html")
 
-        cmd = mock_run.call_args.args[0]
+        cmd = mock_popen.call_args.args[0]
         assert "--type" in cmd
         idx = cmd.index("--type")
         assert cmd[idx + 1] == "text/html"
@@ -83,28 +83,27 @@ class TestClipboardWriteMime:
         raw_data = b"\x89PNG"
         b64_str = base64.b64encode(raw_data).decode("ascii")
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(subprocess, "Popen", return_value=mock_proc),
         ):
             result = input_mod.clipboard_write(b64_str, mime_type="image/png")
 
-        call_kwargs = mock_run.call_args.kwargs
-        assert call_kwargs.get("text") is False
-        assert call_kwargs["input"] == raw_data
+        written = mock_proc.stdin.write.call_args.args[0]
+        assert written == raw_data
         assert result["success"] is True
 
     def test_write_default_mime_is_text_plain(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
+        mock_proc = MagicMock()
+        mock_proc.stdin = MagicMock()
         with (
             patch("shutil.which", return_value="/usr/bin/wl-copy"),
-            patch.object(subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(subprocess, "Popen", return_value=mock_proc) as mock_popen,
         ):
             result = input_mod.clipboard_write("hello")
 
-        cmd = mock_run.call_args.args[0]
+        cmd = mock_popen.call_args.args[0]
         assert "text/plain" in cmd
         assert result["mime_type"] == "text/plain"

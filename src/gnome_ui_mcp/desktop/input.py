@@ -1616,23 +1616,21 @@ def clipboard_write(
         except Exception:
             input_data = text.encode("utf-8")
 
-    result = subprocess.run(
-        cmd,
-        input=input_data,
-        capture_output=True,
-        text=is_text,
-        check=False,
-        env=_child_process_env(),
-        timeout=5,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr if isinstance(result.stderr, str) else result.stderr.decode()
-        return {
-            "success": False,
-            "error": stderr.strip() or "wl-copy failed",
-            "selection": selection,
-            "mime_type": mime_type,
-        }
+    raw: bytes = input_data if isinstance(input_data, bytes) else input_data.encode("utf-8")
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_child_process_env(),
+        )
+        if proc.stdin is not None:
+            proc.stdin.write(raw)
+            proc.stdin.close()
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "selection": selection, "mime_type": mime_type}
 
     return {
         "success": True,
