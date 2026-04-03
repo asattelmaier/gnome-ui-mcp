@@ -371,6 +371,46 @@ class _MutterRemoteDesktopInput:
             "backend": "mutter-remote-desktop",
         }
 
+    def scroll_smooth(
+        self,
+        x: int,
+        y: int,
+        dx: float = 0.0,
+        dy: float = 0.0,
+    ) -> JsonDict:
+        stream_path, stage_area = self._ensure_session()
+        local_x, local_y = stage_area.local_coordinates(x, y)
+        self._call_session(
+            "NotifyPointerMotionAbsolute",
+            GLib.Variant("(sdd)", (stream_path, local_x, local_y)),
+        )
+        time.sleep(0.02)
+
+        if dy != 0.0:
+            self._call_session(
+                "NotifyPointerAxis",
+                GLib.Variant("(ud)", (SCROLL_AXIS_VERTICAL, dy)),
+            )
+        if dx != 0.0:
+            self._call_session(
+                "NotifyPointerAxis",
+                GLib.Variant("(ud)", (SCROLL_AXIS_HORIZONTAL, dx)),
+            )
+        self._call_session(
+            "NotifyPointerAxisFinish",
+            GLib.Variant("(u)", (0,)),
+        )
+
+        return {
+            "success": True,
+            "x": x,
+            "y": y,
+            "dx": dx,
+            "dy": dy,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
     def press_key_combo(
         self,
         modifier_keyvals: list[int],
@@ -799,6 +839,16 @@ def perform_scroll(
         result = _perform_scroll_atspi(direction, clicks, x, y)
         result["fallback_error"] = str(exc)
         return result
+
+
+def scroll_smooth(
+    x: int,
+    y: int,
+    dx: float = 0.0,
+    dy: float = 0.0,
+) -> JsonDict:
+    """Perform a smooth (non-discrete) scroll at the given position."""
+    return _REMOTE_INPUT.scroll_smooth(x, y, dx=dx, dy=dy)
 
 
 def perform_drag(
