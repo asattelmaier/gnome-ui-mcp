@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 from collections.abc import Callable, Iterable
 from typing import TypeVar
@@ -10,6 +11,7 @@ from .locators import build_locator, remember_locator
 from .types import ElementFilter, JsonDict, TreeOptions
 
 _T = TypeVar("_T")
+_log = logging.getLogger(__name__)
 
 WINDOW_ROLES = {"alert", "dialog", "file chooser", "frame", "window"}
 PREFERRED_ACTIONS = ("click", "press", "activate", "jump", "open", "select", "toggle")
@@ -51,6 +53,7 @@ def _safe_call(func: Callable[[], _T], default: _T | None = None) -> _T | None:
     try:
         return func()
     except Exception:
+        _log.debug("_safe_call: %s raised an exception", func, exc_info=True)
         return default
 
 
