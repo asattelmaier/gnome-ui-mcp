@@ -459,6 +459,87 @@ class _MutterRemoteDesktopInput:
             "backend": "mutter-remote-desktop",
         }
 
+    def touch_rotate(
+        self,
+        center_x: int,
+        center_y: int,
+        start_angle: float,
+        end_angle: float,
+        radius: float,
+        *,
+        duration_ms: int = 400,
+        steps: int = 20,
+    ) -> JsonDict:
+        import math
+
+        stream_path, stage_area = self._ensure_session()
+
+        actual_steps = max(1, steps)
+
+        slot_a = 0
+        slot_b = 1
+
+        def _pos(angle: float, offset: float) -> tuple[float, float]:
+            cx, cy = stage_area.local_coordinates(center_x, center_y)
+            return (
+                cx + radius * math.cos(angle + offset),
+                cy + radius * math.sin(angle + offset),
+            )
+
+        ax, ay = _pos(start_angle, 0)
+        bx, by = _pos(start_angle, math.pi)
+
+        self._call_session(
+            "NotifyTouchDown",
+            GLib.Variant("(sudd)", (stream_path, slot_a, ax, ay)),
+        )
+        self._call_session(
+            "NotifyTouchDown",
+            GLib.Variant("(sudd)", (stream_path, slot_b, bx, by)),
+        )
+
+        start_time = time.monotonic()
+        for i in range(1, actual_steps + 1):
+            frac = i / actual_steps
+            angle = start_angle + frac * (end_angle - start_angle)
+            nax, nay = _pos(angle, 0)
+            nbx, nby = _pos(angle, math.pi)
+            self._call_session(
+                "NotifyTouchMotion",
+                GLib.Variant("(sudd)", (stream_path, slot_a, nax, nay)),
+            )
+            self._call_session(
+                "NotifyTouchMotion",
+                GLib.Variant("(sudd)", (stream_path, slot_b, nbx, nby)),
+            )
+            if duration_ms > 0:
+                target = start_time + (duration_ms / 1000) * i / actual_steps
+                remaining = target - time.monotonic()
+                if remaining > 0:
+                    time.sleep(remaining)
+
+        self._call_session(
+            "NotifyTouchUp",
+            GLib.Variant("(u)", (slot_a,)),
+        )
+        self._call_session(
+            "NotifyTouchUp",
+            GLib.Variant("(u)", (slot_b,)),
+        )
+
+        return {
+            "success": True,
+            "center_x": center_x,
+            "center_y": center_y,
+            "start_angle": start_angle,
+            "end_angle": end_angle,
+            "radius": radius,
+            "duration_ms": duration_ms,
+            "steps": actual_steps,
+            "backend": "mutter-remote-desktop",
+            "stream_path": stream_path,
+        }
+
     def close(self) -> None:
         with self._lock:
             if self._rd_session is not None and self._started:
@@ -898,6 +979,25 @@ def perform_drag(
         )
         result["fallback_error"] = str(exc)
         return result
+
+
+def touch_rotate(
+    center_x: int,
+    center_y: int,
+    start_angle: float,
+    end_angle: float,
+    radius: float,
+    duration_ms: int = 400,
+) -> JsonDict:
+    """Perform a two-finger rotation gesture around a center point."""
+    return _REMOTE_INPUT.touch_rotate(
+        center_x,
+        center_y,
+        start_angle,
+        end_angle,
+        radius,
+        duration_ms=duration_ms,
+    )
 
 
 def _perform_mouse_move_atspi(x: int, y: int) -> JsonDict:

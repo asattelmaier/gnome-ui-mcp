@@ -202,6 +202,24 @@ def drag(
     )
 
 
+def touch_rotate(
+    center_x: int,
+    center_y: int,
+    start_angle: float,
+    end_angle: float,
+    radius: float,
+    duration_ms: int = 400,
+) -> JsonDict:
+    return input.touch_rotate(
+        center_x=center_x,
+        center_y=center_y,
+        start_angle=start_angle,
+        end_angle=end_angle,
+        radius=radius,
+        duration_ms=duration_ms,
+    )
+
+
 def clipboard_read(
     selection: str = "clipboard",
     mime_type: str = "text/plain",
