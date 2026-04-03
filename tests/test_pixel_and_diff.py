@@ -12,6 +12,7 @@ pytest.importorskip("scipy", reason="scipy not installed")
 from PIL import Image  # noqa: E402
 
 from gnome_ui_mcp.desktop import visual as visual_mod  # noqa: E402
+from gnome_ui_mcp.desktop.input import CACHE_DIR  # noqa: E402
 
 
 class TestGetPixelColor:
@@ -83,10 +84,12 @@ class TestGetRegionColor:
 class TestVisualDiff:
     def test_identical_images_no_change(self) -> None:
         img = Image.new("RGB", (100, 100), (128, 128, 128))
+        p1 = str(CACHE_DIR / "a.png")
+        p2 = str(CACHE_DIR / "b.png")
         with patch("gnome_ui_mcp.desktop.visual.Image") as mock_pil:
             mock_pil.open.side_effect = [img.copy(), img.copy()]
 
-            result = visual_mod.visual_diff("/tmp/a.png", "/tmp/b.png")
+            result = visual_mod.visual_diff(p1, p2)
 
         assert result["success"] is True
         assert result["changed"] is False
@@ -101,10 +104,12 @@ class TestVisualDiff:
             for y in range(20, 40):
                 img2.putpixel((x, y), (255, 255, 255))
 
+        p1 = str(CACHE_DIR / "a.png")
+        p2 = str(CACHE_DIR / "b.png")
         with patch("gnome_ui_mcp.desktop.visual.Image") as mock_pil:
             mock_pil.open.side_effect = [img1, img2]
 
-            result = visual_mod.visual_diff("/tmp/a.png", "/tmp/b.png")
+            result = visual_mod.visual_diff(p1, p2)
 
         assert result["success"] is True
         assert result["changed"] is True
@@ -118,10 +123,12 @@ class TestVisualDiff:
             for y in range(50, 60):
                 img2.putpixel((x, y), (255, 0, 0))
 
+        p1 = str(CACHE_DIR / "a.png")
+        p2 = str(CACHE_DIR / "b.png")
         with patch("gnome_ui_mcp.desktop.visual.Image") as mock_pil:
             mock_pil.open.side_effect = [img1, img2]
 
-            result = visual_mod.visual_diff("/tmp/a.png", "/tmp/b.png")
+            result = visual_mod.visual_diff(p1, p2)
 
         region = result["regions"][0]
         assert "x" in region
@@ -130,9 +137,11 @@ class TestVisualDiff:
         assert "height" in region
 
     def test_invalid_path_returns_error(self) -> None:
+        p1 = str(CACHE_DIR / "missing1.png")
+        p2 = str(CACHE_DIR / "missing2.png")
         with patch("gnome_ui_mcp.desktop.visual.Image") as mock_pil:
             mock_pil.open.side_effect = FileNotFoundError("No such file")
 
-            result = visual_mod.visual_diff("/tmp/missing1.png", "/tmp/missing2.png")
+            result = visual_mod.visual_diff(p1, p2)
 
         assert result["success"] is False

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from . import input
+from .input import CACHE_DIR
 from .types import JsonDict
 
 try:
@@ -94,6 +97,16 @@ def visual_diff(
 ) -> JsonDict:
     if not _HAS_VISUAL_DEPS:
         return {"success": False, "error": _MISSING_DEPS_ERROR}
+
+    for p in (image_path_1, image_path_2):
+        try:
+            Path(p).resolve().relative_to(CACHE_DIR.resolve())
+        except ValueError:
+            return {
+                "success": False,
+                "error": f"Path outside screenshot cache directory: {p}",
+            }
+
     try:
         img1 = Image.open(image_path_1).convert("RGB")
         img2 = Image.open(image_path_2).convert("RGB")

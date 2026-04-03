@@ -6,8 +6,10 @@ import base64
 import json
 import os
 import urllib.request
+from pathlib import Path
 
 from . import input
+from .input import CACHE_DIR
 from .types import JsonDict
 
 _DEFAULT_MODELS: dict[str, str] = {
@@ -26,6 +28,12 @@ _API_KEY_ENV: dict[str, str] = {
     "openrouter": "OPENROUTER_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
 }
+
+
+def _validate_cache_path(path: str) -> None:
+    """Raise ValueError if *path* is outside the screenshot cache directory."""
+    resolved = Path(path).resolve()
+    resolved.relative_to(CACHE_DIR.resolve())  # raises ValueError if outside
 
 
 def _read_image_b64(path: str) -> str:
@@ -233,6 +241,15 @@ def compare_screenshots(
             "success": False,
             "error": f"Invalid provider {provider!r}. Valid providers: {valid}",
         }
+
+    for p in (path1, path2):
+        try:
+            _validate_cache_path(p)
+        except ValueError:
+            return {
+                "success": False,
+                "error": f"Path outside screenshot cache directory: {p}",
+            }
 
     # Check API key for providers that require it
     if provider in _API_KEY_ENV:

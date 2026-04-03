@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, mock_open, patch
 
 from gnome_ui_mcp.desktop import vlm
+from gnome_ui_mcp.desktop.input import CACHE_DIR
 
 
 class TestAnalyzeScreenshot:
@@ -117,7 +118,9 @@ class TestCompareScreenshots:
         mock_response.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_response
 
-        result = vlm.compare_screenshots("/tmp/a.png", "/tmp/b.png")
+        p1 = str(CACHE_DIR / "a.png")
+        p2 = str(CACHE_DIR / "b.png")
+        result = vlm.compare_screenshots(p1, p2)
         assert result["success"] is True
         assert "new button" in result["analysis"]
 
@@ -135,11 +138,16 @@ class TestCompareScreenshots:
         mock_response.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value = mock_response
 
-        result = vlm.compare_screenshots("/tmp/a.png", "/tmp/b.png", prompt="Compare colors")
+        p1 = str(CACHE_DIR / "a.png")
+        p2 = str(CACHE_DIR / "b.png")
+        result = vlm.compare_screenshots(p1, p2, prompt="Compare colors")
         assert result["success"] is True
         assert result["analysis"] == "Colors differ"
 
     @patch("builtins.open", side_effect=FileNotFoundError("no file"))
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_compare_missing_file(self, mock_file: MagicMock) -> None:
-        result = vlm.compare_screenshots("/tmp/nonexistent.png", "/tmp/b.png")
+        p1 = str(CACHE_DIR / "nonexistent.png")
+        p2 = str(CACHE_DIR / "b.png")
+        result = vlm.compare_screenshots(p1, p2)
         assert result["success"] is False
