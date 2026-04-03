@@ -29,9 +29,6 @@ class TestNotificationActions:
 
     def test_action_invocation(self) -> None:
         mock_bus = MagicMock()
-        mock_result = MagicMock()
-        mock_result.unpack.return_value = (True,)
-        mock_bus.call_sync.return_value = mock_result
 
         with patch.object(
             notifications.Gio,
@@ -41,6 +38,7 @@ class TestNotificationActions:
             result = notifications.click_notification_action(42, "default")
 
         assert result["success"] is True
+        mock_bus.emit_signal.assert_called_once()
 
     def test_invalid_id_error(self) -> None:
         mock_bus = MagicMock()
