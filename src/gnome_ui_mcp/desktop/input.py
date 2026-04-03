@@ -218,6 +218,21 @@ class _MutterRemoteDesktopInput:
             "stream_path": stream_path,
         }
 
+    def move_relative(self, dx: float, dy: float) -> JsonDict:
+        self._ensure_session()
+        self._call_session(
+            "NotifyPointerMotionRelative",
+            GLib.Variant("(dd)", (dx, dy)),
+        )
+        time.sleep(0.02)
+
+        return {
+            "success": True,
+            "dx": dx,
+            "dy": dy,
+            "backend": "mutter-remote-desktop",
+        }
+
     def drag_to(
         self,
         start_x: int,
@@ -895,6 +910,21 @@ def perform_mouse_move(x: int, y: int) -> JsonDict:
         return _REMOTE_INPUT.move_to(x, y)
     except Exception as exc:
         result = _perform_mouse_move_atspi(x, y)
+        result["fallback_error"] = str(exc)
+        return result
+
+
+def _perform_mouse_move_relative_atspi(dx: float, dy: float) -> JsonDict:
+    Atspi.generate_mouse_event(int(dx), int(dy), "rel")
+    return {"success": True, "dx": dx, "dy": dy, "backend": "atspi"}
+
+
+def mouse_move_relative(dx: float, dy: float) -> JsonDict:
+    """Move the mouse cursor by a relative offset."""
+    try:
+        return _REMOTE_INPUT.move_relative(dx, dy)
+    except Exception as exc:
+        result = _perform_mouse_move_relative_atspi(dx, dy)
         result["fallback_error"] = str(exc)
         return result
 

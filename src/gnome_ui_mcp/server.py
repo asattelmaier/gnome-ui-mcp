@@ -261,6 +261,16 @@ def mouse_move(x: int, y: int) -> CallToolResult:
 
 @mcp.tool(
     description=(
+        "Move the mouse cursor by a relative offset (dx, dy) from its current position. "
+        "Useful when absolute coordinates are not known."
+    )
+)
+def mouse_move_relative(dx: float, dy: float) -> CallToolResult:
+    return _run_tool(lambda: backend.mouse_move_relative(dx=dx, dy=dy))
+
+
+@mcp.tool(
+    description=(
         "Smoothly move the mouse cursor from one position to another over a given duration. "
         "Interpolates intermediate positions for natural-looking movement."
     )

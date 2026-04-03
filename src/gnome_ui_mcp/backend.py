@@ -214,6 +214,10 @@ def mouse_move(x: int, y: int) -> JsonDict:
     return input.perform_mouse_move(x=x, y=y)
 
 
+def mouse_move_relative(dx: float, dy: float) -> JsonDict:
+    return input.mouse_move_relative(dx=dx, dy=dy)
+
+
 def mouse_move_smooth(
     start_x: int,
     start_y: int,
