@@ -39,6 +39,14 @@ from .desktop import (
 from .desktop.types import ElementFilter, JsonDict, SettleOptions, TreeOptions
 
 
+def _check_boundary(element_id: str) -> JsonDict | None:
+    """Return an error dict if element_id violates the active boundary, else None."""
+    result = boundaries.check_boundary(element_id)
+    if not result.get("allowed", True):
+        return {"success": False, **result}
+    return None
+
+
 def ping() -> JsonDict:
     applications = accessibility.list_applications()["applications"]
 
@@ -105,6 +113,8 @@ def find_elements(
 
 
 def focus_element(element_id: str) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.focus_element(element_id=element_id)
 
 
@@ -118,6 +128,8 @@ def click_element(
     click_count: int = 1,
     button: str = "left",
 ) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return interaction.click_element(
         element_id=element_id,
         action_name=action_name,
@@ -127,6 +139,8 @@ def click_element(
 
 
 def activate_element(element_id: str, action_name: str | None = None) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return interaction.activate_element(element_id=element_id, action_name=action_name)
 
 
@@ -260,10 +274,14 @@ def mouse_move_smooth(
 
 
 def hover_element(element_id: str) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return interaction.hover_element(element_id=element_id)
 
 
 def set_element_text(element_id: str, text: str) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.set_element_text(element_id=element_id, text=text)
 
 
@@ -658,18 +676,26 @@ def compare_screenshots(
 
 
 def select_option(element_id: str, child_index: int) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.select_option(element_id=element_id, child_index=child_index)
 
 
 def set_toggle_state(element_id: str, desired_state: bool) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.set_toggle_state(element_id=element_id, desired_state=desired_state)
 
 
 def expand_node(element_id: str) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.expand_node(element_id=element_id)
 
 
 def collapse_node(element_id: str) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.collapse_node(element_id=element_id)
 
 
@@ -699,6 +725,8 @@ def get_focused_element() -> JsonDict:
 
 
 def set_element_value(element_id: str, value: float) -> JsonDict:
+    if err := _check_boundary(element_id):
+        return err
     return accessibility.set_element_value(element_id=element_id, value=value)
 
 
