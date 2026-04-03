@@ -949,7 +949,10 @@ def get_monitor_for_point(x: int, y: int) -> CallToolResult:
 @mcp.tool(
     description=(
         "Start an isolated GNOME Shell session via gnome-shell --headless. "
-        "Creates a private D-Bus session with its own display and input."
+        "Creates a private D-Bus session with its own display and input. "
+        "Note: this MCP server continues using the original session. "
+        "To automate inside the isolated session, launch a separate "
+        "MCP server with the returned bus_address."
     )
 )
 def session_start(width: int = 1920, height: int = 1080) -> CallToolResult:
@@ -1133,7 +1136,14 @@ def visual_diff(
 # --- System integration tools ---
 
 
-@mcp.tool(description="Call any D-Bus method on the session bus.")
+@mcp.tool(
+    description=(
+        "Call any D-Bus method on the session bus. "
+        "Warning: this provides wide access to session services. "
+        "Use with caution — can modify system settings, "
+        "control applications, and access user data."
+    )
+)
 def dbus_call(
     bus_name: str,
     object_path: str,
