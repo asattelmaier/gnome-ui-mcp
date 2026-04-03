@@ -1215,3 +1215,17 @@ def launch_with_logging(command: str) -> CallToolResult:
 @mcp.tool(description="Read stdout/stderr of a launched application by PID.")
 def read_app_log(pid: int, last_n_lines: int = 0) -> CallToolResult:
     return _run_tool(lambda: backend.read_app_log(pid=pid, last_n_lines=last_n_lines))
+
+
+@mcp.tool(description=("Gracefully close all windows of an application by sending Alt+F4."))
+def close_app(app_name: str) -> CallToolResult:
+    return _run_tool(lambda: backend.close_app(app_name=app_name))
+
+
+@mcp.tool(
+    description=(
+        "Forcefully kill an application by PID. Sends SIGTERM first, then SIGKILL if still alive."
+    )
+)
+def kill_app(app_name: str) -> CallToolResult:
+    return _run_tool(lambda: backend.kill_app(app_name=app_name))
