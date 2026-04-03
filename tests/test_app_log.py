@@ -11,7 +11,10 @@ class TestLaunchWithLogging:
     def test_returns_pid(self) -> None:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
-        with patch("subprocess.Popen", return_value=mock_proc):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("shutil.which", return_value="/usr/bin/gnome-calculator"),
+        ):
             result = al_mod.launch_with_logging("gnome-calculator")
 
         assert result["success"] is True
@@ -20,7 +23,10 @@ class TestLaunchWithLogging:
     def test_stores_process(self) -> None:
         mock_proc = MagicMock()
         mock_proc.pid = 99
-        with patch("subprocess.Popen", return_value=mock_proc):
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("shutil.which", return_value="/usr/bin/echo"),
+        ):
             al_mod.launch_with_logging("echo hello")
 
         assert 99 in al_mod._PROCESSES

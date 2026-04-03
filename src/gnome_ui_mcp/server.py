@@ -1314,7 +1314,12 @@ def launch_app(desktop_id: str) -> CallToolResult:
     return _run_tool(lambda: backend.launch_app(desktop_id=desktop_id))
 
 
-@mcp.tool(description="Launch an application with stdout/stderr capture.")
+@mcp.tool(
+    description=(
+        "Launch an application with stdout/stderr capture. "
+        "Warning: executes the specified command on the host system."
+    )
+)
 def launch_with_logging(command: str) -> CallToolResult:
     return _run_tool(lambda: backend.launch_with_logging(command=command))
 

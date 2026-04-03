@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+import shutil
 import subprocess
 
 from .types import JsonDict
@@ -11,6 +12,19 @@ _PROCESSES: dict[int, JsonDict] = {}
 def launch_with_logging(command: str) -> JsonDict:
     try:
         parts = shlex.split(command)
+    except ValueError as exc:
+        return {"success": False, "error": f"Invalid command: {exc}"}
+
+    if not parts:
+        return {"success": False, "error": "Empty command"}
+
+    if shutil.which(parts[0]) is None:
+        return {
+            "success": False,
+            "error": f"Executable not found: {parts[0]}",
+        }
+
+    try:
         proc = subprocess.Popen(
             parts,
             stdout=subprocess.PIPE,
