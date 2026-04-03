@@ -943,19 +943,33 @@ def session_info() -> CallToolResult:
 # --- Input tools ---
 
 
-@mcp.tool(description="Read text from the system clipboard or primary selection.")
+@mcp.tool(
+    description=(
+        "Read the Wayland clipboard contents. Supports custom MIME types "
+        "for reading binary data (returned as base64)."
+    )
+)
 def clipboard_read(
     selection: Literal["clipboard", "primary"] = "clipboard",
+    mime_type: str = "text/plain",
 ) -> CallToolResult:
-    return _run_tool(lambda: backend.clipboard_read(selection=selection))
+    return _run_tool(lambda: backend.clipboard_read(selection=selection, mime_type=mime_type))
 
 
-@mcp.tool(description="Write text to the system clipboard or primary selection.")
+@mcp.tool(
+    description=(
+        "Write to the Wayland clipboard. Supports custom MIME types. "
+        "For binary types, pass base64-encoded data as text."
+    )
+)
 def clipboard_write(
     text: str,
     selection: Literal["clipboard", "primary"] = "clipboard",
+    mime_type: str = "text/plain",
 ) -> CallToolResult:
-    return _run_tool(lambda: backend.clipboard_write(text=text, selection=selection))
+    return _run_tool(
+        lambda: backend.clipboard_write(text=text, selection=selection, mime_type=mime_type)
+    )
 
 
 @mcp.tool(description=("Drag from one screen position to another with smooth interpolation."))
