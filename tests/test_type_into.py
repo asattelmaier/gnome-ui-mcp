@@ -76,10 +76,18 @@ class TestTypeIntoOcr:
         """OCR finds label, clicks its center, then types text."""
         mock_acc.find_elements.return_value = {"success": True, "matches": []}
         mock_find_ocr.return_value = {
-            "x": 100,
-            "y": 200,
-            "width": 80,
-            "height": 20,
+            "success": True,
+            "matches": [
+                {
+                    "text": "Username",
+                    "x": 100,
+                    "y": 200,
+                    "width": 80,
+                    "height": 20,
+                    "center_x": 140,
+                    "center_y": 210,
+                }
+            ],
         }
         mock_interaction.click_at.return_value = {"success": True}
         mock_input.type_text.return_value = {"success": True}
@@ -87,7 +95,7 @@ class TestTypeIntoOcr:
         result = ocr.type_into("Username", "admin")
         assert result["success"] is True
         assert result["method"] == "ocr"
-        # Click at center of OCR bounding box
+        # Click at center of OCR match
         mock_interaction.click_at.assert_called_once_with(x=140, y=210)
         mock_input.type_text.assert_called_once_with("admin")
 

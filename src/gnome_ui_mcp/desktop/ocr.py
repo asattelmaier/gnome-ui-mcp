@@ -213,26 +213,15 @@ def type_into(label: str, text: str, submit: bool = False) -> JsonDict:
 
     # --- OCR fallback ---
     ocr_result = find_text_ocr(label)
-    if not ocr_result:
+    if not ocr_result or not ocr_result.get("success"):
         return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
 
-    # Handle both old bbox format (x, y, width, height) and new format (success, matches)
-    if isinstance(ocr_result, dict) and "success" in ocr_result:
-        # New format from pytesseract-based find_text_ocr
-        if not ocr_result.get("success"):
-            return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
-        matches = ocr_result.get("matches", [])
-        if not matches:
-            return {"success": False, "error": f"Label {label!r} not found via OCR"}
-        match = matches[0]
-        center_x = match["center_x"]
-        center_y = match["center_y"]
-    elif isinstance(ocr_result, dict) and "x" in ocr_result:
-        # Old format: simple bounding box dict
-        center_x = ocr_result["x"] + ocr_result["width"] // 2
-        center_y = ocr_result["y"] + ocr_result["height"] // 2
-    else:
-        return {"success": False, "error": f"Label {label!r} not found via AT-SPI or OCR"}
+    matches = ocr_result.get("matches", [])
+    if not matches:
+        return {"success": False, "error": f"Label {label!r} not found via OCR"}
+    match = matches[0]
+    center_x = match["center_x"]
+    center_y = match["center_y"]
 
     interaction.click_at(x=center_x, y=center_y)
     input.type_text(text)
