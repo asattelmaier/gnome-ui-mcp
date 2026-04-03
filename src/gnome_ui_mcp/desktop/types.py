@@ -1,8 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 JsonDict = dict[str, object]
+
+
+def unpack_variant(val: Any) -> Any:
+    """Recursively unpack GLib.Variant values into plain Python objects."""
+    from ..runtime.gi_env import GLib
+
+    if isinstance(val, GLib.Variant):
+        return unpack_variant(val.unpack())
+    if isinstance(val, dict):
+        return {k: unpack_variant(v) for k, v in val.items()}
+    if isinstance(val, list | tuple):
+        unpacked = [unpack_variant(item) for item in val]
+        return tuple(unpacked) if isinstance(val, tuple) else unpacked
+    return val
 
 
 @dataclass(frozen=True)

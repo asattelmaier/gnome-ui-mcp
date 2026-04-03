@@ -3,17 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..runtime.gi_env import Gio, GLib
-from .types import JsonDict
-
-
-def _variant_to_json(val: Any) -> Any:
-    if isinstance(val, GLib.Variant):
-        return _variant_to_json(val.unpack())
-    if isinstance(val, dict):
-        return {k: _variant_to_json(v) for k, v in val.items()}
-    if isinstance(val, list | tuple):
-        return [_variant_to_json(item) for item in val]
-    return val
+from .types import JsonDict, unpack_variant
 
 
 def _json_to_variant(value: Any, current_variant: GLib.Variant) -> GLib.Variant:
@@ -37,7 +27,7 @@ def gsettings_get(schema: str, key: str) -> JsonDict:
     try:
         settings = Gio.Settings(schema_id=schema)
         variant = settings.get_value(key)
-        value = _variant_to_json(variant)
+        value = unpack_variant(variant)
     except Exception as exc:
         return {"success": False, "error": str(exc), "schema": schema, "key": key}
 

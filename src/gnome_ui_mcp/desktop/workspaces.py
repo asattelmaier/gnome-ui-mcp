@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-
 from ..runtime.gi_env import Gio, GLib
 from . import input
-from .types import JsonDict
+from .types import JsonDict, unpack_variant
 
 _VALID_DIRECTIONS = {"up", "down"}
 
@@ -25,16 +23,6 @@ def _send_key_combo(keys: list[str]) -> JsonDict:
         return {"success": result.get("success", False), "keys": keys, "result": result}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
-
-
-def _unpack_variant(val: Any) -> Any:
-    if isinstance(val, GLib.Variant):
-        return _unpack_variant(val.unpack())
-    if isinstance(val, dict):
-        return {k: _unpack_variant(v) for k, v in val.items()}
-    if isinstance(val, list | tuple):
-        return [_unpack_variant(item) for item in val]
-    return val
 
 
 def switch_workspace(direction: str) -> JsonDict:
@@ -80,7 +68,7 @@ def list_workspaces() -> JsonDict:
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
-    unpacked = _unpack_variant(result)
+    unpacked = unpack_variant(result)
     raw_windows = unpacked[0] if unpacked else {}
 
     workspace_map: dict[int, list[JsonDict]] = {}

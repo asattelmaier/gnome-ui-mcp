@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from gnome_ui_mcp.desktop import dbus as dbus_mod
+from gnome_ui_mcp.desktop.types import unpack_variant
 
 
 class TestVariantFromJson:
@@ -47,21 +48,21 @@ class TestVariantToJson:
         from gi.repository import GLib
 
         v = GLib.Variant("(s)", ("hello",))
-        result = dbus_mod._variant_to_json(v)
+        result = unpack_variant(v)
         assert result == ("hello",)
 
     def test_nested_dict(self) -> None:
         from gi.repository import GLib
 
         v = GLib.Variant("(a{sv})", ({"key": GLib.Variant("s", "val")},))
-        result = dbus_mod._variant_to_json(v)
+        result = unpack_variant(v)
         assert result == ({"key": "val"},)
 
     def test_int(self) -> None:
         from gi.repository import GLib
 
         v = GLib.Variant("(iu)", (42, 99))
-        result = dbus_mod._variant_to_json(v)
+        result = unpack_variant(v)
         assert result == (42, 99)
 
 

@@ -1,23 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
-
-from ..runtime.gi_env import Gio, GLib
-from .types import JsonDict
+from ..runtime.gi_env import Gio
+from .types import JsonDict, unpack_variant
 
 MUTTER_DISPLAY_CONFIG_BUS = "org.gnome.Mutter.DisplayConfig"
 MUTTER_DISPLAY_CONFIG_PATH = "/org/gnome/Mutter/DisplayConfig"
 MUTTER_DISPLAY_CONFIG_IFACE = "org.gnome.Mutter.DisplayConfig"
-
-
-def _unpack_variant(val: Any) -> Any:
-    if isinstance(val, GLib.Variant):
-        return _unpack_variant(val.unpack())
-    if isinstance(val, dict):
-        return {k: _unpack_variant(v) for k, v in val.items()}
-    if isinstance(val, list | tuple):
-        return [_unpack_variant(item) for item in val]
-    return val
 
 
 def list_monitors() -> JsonDict:
@@ -37,7 +25,7 @@ def list_monitors() -> JsonDict:
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
-    unpacked = _unpack_variant(result)
+    unpacked = unpack_variant(result)
     _serial, raw_monitors, raw_logical, _properties = unpacked
 
     # Build logical monitor lookup: connector -> (x, y, scale, is_primary)
