@@ -3,7 +3,7 @@
   "name": "io.github.asattelmaier/gnome-ui-mcp",
   "title": "GNOME UI MCP",
   "description": "GNOME Wayland desktop automation via AT-SPI discovery and Mutter input.",
-  "version": "0.2.0",
+  "version": "0.4.1",
   "repository": {
     "id": "1182349667",
     "source": "github",
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/asattelmaier/gnome-ui-mcp:0.2.0",
+      "identifier": "ghcr.io/asattelmaier/gnome-ui-mcp:0.4.1",
       "runtimeHint": "docker",
       "runtimeArguments": [
         {
