@@ -1,0 +1,16 @@
+name: Task
+description: Work tracking for maintainers only
+title: "[Task]: "
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### This issue type is for maintainers only.
+        Use it to track small non-user-facing work or internal improvements.
+  - type: textarea
+    id: task
+    attributes:
+      label: Task to do
+    validations:
+      required: true
