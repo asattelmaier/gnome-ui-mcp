@@ -9,13 +9,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import TypeVar
 
 from ..desktop import accessibility as _desktop_accessibility
 from ..desktop.types import ElementFilter, TreeOptions
 from ..runtime.gi_env import Atspi
 
-_T = TypeVar("_T")
 _log = logging.getLogger(__name__)
 
 WINDOW_ROLES = {"alert", "dialog", "file chooser", "frame", "window"}
@@ -38,7 +36,7 @@ def _desktop() -> Atspi.Accessible:
     return desktop
 
 
-def _safe_call(func: Callable[[], _T], default: _T | None = None) -> _T | None:
+def _safe_call[T](func: Callable[[], T], default: T | None = None) -> T | None:
     try:
         return func()
     except Exception:

@@ -4,13 +4,11 @@ import hashlib
 import logging
 import time
 from collections.abc import Callable, Iterable
-from typing import TypeVar
 
 from ..runtime.gi_env import Atspi
 from .locators import build_locator, remember_locator
 from .types import ElementFilter, JsonDict, TreeOptions
 
-_T = TypeVar("_T")
 _log = logging.getLogger(__name__)
 
 WINDOW_ROLES = {"alert", "dialog", "file chooser", "frame", "window"}
@@ -49,7 +47,7 @@ def desktop_count() -> int:
     return Atspi.get_desktop_count()
 
 
-def _safe_call(func: Callable[[], _T], default: _T | None = None) -> _T | None:
+def _safe_call[T](func: Callable[[], T], default: T | None = None) -> T | None:
     try:
         return func()
     except Exception:
