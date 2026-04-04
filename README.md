@@ -84,6 +84,32 @@ docker run ... ghcr.io/asattelmaier/gnome-ui-mcp:latest --transport streamable-h
 docker run ... ghcr.io/asattelmaier/gnome-ui-mcp:latest --transport sse
 ```
 
+## Marketplaces
+
+The repository includes metadata for these distribution channels:
+
+- MCP Registry via [`server.json`](server.json)
+- Claude Code plugin marketplaces via [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)
+- VS Code and GitHub agent plugin marketplaces via [`.github/plugin/plugin.json`](.github/plugin/plugin.json)
+
+### Claude Code plugin marketplace
+
+To add this repository as a plugin marketplace in Claude Code:
+
+```sh
+/plugin marketplace add asattelmaier/gnome-ui-mcp
+```
+
+Then install the plugin:
+
+```sh
+/plugin install gnome-ui-mcp
+```
+
+The plugin starts the published Docker image through
+[`scripts/run-docker-mcp.sh`](scripts/run-docker-mcp.sh), so Docker and the
+GNOME session environment must be available on the host.
+
 ## Example MCP client configuration
 
 ```json

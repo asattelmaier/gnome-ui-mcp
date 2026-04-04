@@ -97,6 +97,24 @@ def main() -> None:
     spec = build_openapi(str(__version__))
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(spec, indent=2))
+
+    index_html = OUTPUT.parent / "index.html"
+    index_html.write_text(
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        "  <title>gnome-ui-mcp API</title>\n"
+        '  <meta charset="utf-8"/>\n'
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        "</head>\n"
+        "<body>\n"
+        "  <redoc spec-url='openapi.json'></redoc>\n"
+        '  <script src="https://cdn.redoc.ly/redoc/latest/bundles/'
+        'redoc.standalone.js"></script>\n'
+        "</body>\n"
+        "</html>\n"
+    )
+
     print(f"Generated {OUTPUT} with {len(tools)} tools (version {__version__})")
 
 

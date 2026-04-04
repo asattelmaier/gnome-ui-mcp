@@ -36,9 +36,9 @@ git push origin main
 git push origin v0.1.4              # triggers the release workflow
 ```
 
-The release script bumps `pyproject.toml`, `server.json`, and `uv.lock`,
-runs `./scripts/check.sh`, generates a changelog from git history, and
-creates the commit and annotated tag locally.
+The release script bumps `pyproject.toml`, `server.json`, the marketplace
+metadata files, and `uv.lock`, runs `./scripts/check.sh`, generates a
+changelog from git history, and creates the commit and annotated tag locally.
 
 Use `minor` or `major` instead of `patch`, or pass an explicit version
 like `./scripts/release.sh 0.2.0`. Preview with `--dry-run`.

@@ -113,7 +113,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   [[ -z "$worktree_issue" ]] || echo "Would fail now: $worktree_issue"
   [[ -z "$tag_issue" ]] || echo "Would fail now: $tag_issue"
   echo "Dry run only. No files were changed."
-  echo "Would update: pyproject.toml, server.json, uv.lock"
+  echo "Would update: pyproject.toml, server.json, marketplace metadata, uv.lock"
   echo "Would run:    uv lock"
   echo "Would run:    ./scripts/bootstrap.sh"
   echo "Would run:    ./scripts/check.sh"
@@ -156,13 +156,22 @@ for package in server.get("packages", []):
         package["identifier"] = f"{identifier.rsplit(':', 1)[0]}:{next_version}"
 
 server_path.write_text(json.dumps(server, indent=2) + "\n", encoding="utf-8")
+
+for metadata_path in (
+    Path(".claude-plugin/marketplace.json"),
+    Path(".claude-plugin/plugin.json"),
+    Path(".github/plugin/plugin.json"),
+):
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["version"] = next_version
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
 PY
 
 uv lock
 ./scripts/bootstrap.sh
 ./scripts/check.sh
 
-git add pyproject.toml server.json uv.lock
+git add pyproject.toml server.json .claude-plugin .github/plugin uv.lock
 git commit -m "Release version ${next_version}
 
 ${changelog}"

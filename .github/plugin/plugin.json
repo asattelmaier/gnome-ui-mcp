@@ -1,0 +1,11 @@
+{
+  "name": "gnome-ui-mcp",
+  "version": "0.4.1",
+  "description": "GNOME Wayland desktop automation via AT-SPI discovery and Mutter input",
+  "mcpServers": {
+    "gnome-ui": {
+      "command": "./scripts/run-docker-mcp.sh",
+      "args": []
+    }
+  }
+}

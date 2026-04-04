@@ -1,0 +1,16 @@
+{
+  "name": "gnome-ui-plugins",
+  "version": "0.4.1",
+  "description": "Bundled plugins for GNOME desktop automation through MCP.",
+  "repository": "https://github.com/asattelmaier/gnome-ui-mcp",
+  "owner": {
+    "name": "Alexander Sattelmaier"
+  },
+  "plugins": [
+    {
+      "name": "gnome-ui-mcp",
+      "source": "./",
+      "description": "GNOME Wayland desktop automation via AT-SPI discovery and Mutter input"
+    }
+  ]
+}

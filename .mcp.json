@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gnome-ui": {
+      "command": "uv",
+      "args": ["run", "gnome-ui-mcp"]
+    }
+  }
+}
