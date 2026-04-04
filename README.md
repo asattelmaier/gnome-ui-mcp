@@ -61,6 +61,29 @@ docker compose build
 docker compose run --rm gnome-ui-mcp
 ```
 
+## Available transports
+
+The server supports three transports, both locally and in Docker:
+
+- `stdio` (default): recommended for local MCP clients that spawn the server process
+- `streamable-http`: recommended for HTTP-based integrations on `http://127.0.0.1:8000/mcp`
+- `sse`: available for backwards compatibility on `http://127.0.0.1:8000/sse` with message POSTs to `http://127.0.0.1:8000/messages/`
+
+Examples:
+
+```bash
+gnome-ui-mcp
+gnome-ui-mcp --transport streamable-http
+gnome-ui-mcp --transport sse
+```
+
+The same flags can be passed to the Docker image by appending them after the image name:
+
+```bash
+docker run ... ghcr.io/asattelmaier/gnome-ui-mcp:latest --transport streamable-http
+docker run ... ghcr.io/asattelmaier/gnome-ui-mcp:latest --transport sse
+```
+
 ## Example MCP client configuration
 
 ```json

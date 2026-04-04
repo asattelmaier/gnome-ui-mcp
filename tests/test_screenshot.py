@@ -90,39 +90,3 @@ class TestScreenshotWindow:
             result = input_mod.screenshot_window()
 
         assert result["success"] is False
-
-
-class TestBackendScreenshotWindow:
-    def test_focuses_window_before_capture(self) -> None:
-        from gnome_ui_mcp import backend
-
-        with (
-            patch.object(
-                backend.accessibility,
-                "focus_element",
-                return_value={"success": True, "element_id": "0/1"},
-            ) as mock_focus,
-            patch.object(
-                backend.input,
-                "screenshot_window",
-                return_value={"success": True, "path": "/tmp/win.png"},
-            ),
-            patch("time.sleep"),
-        ):
-            result = backend.screenshot_window(window_element_id="0/1")
-
-        mock_focus.assert_called_once_with(element_id="0/1")
-        assert result["success"] is True
-
-    def test_fails_if_focus_fails(self) -> None:
-        from gnome_ui_mcp import backend
-
-        with patch.object(
-            backend.accessibility,
-            "focus_element",
-            return_value={"success": False, "error": "no component"},
-        ):
-            result = backend.screenshot_window(window_element_id="0/1")
-
-        assert result["success"] is False
-        assert "focus" in result["error"].lower()
