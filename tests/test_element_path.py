@@ -52,8 +52,8 @@ def _make_desktop_tree() -> tuple[MagicMock, dict[str, MagicMock]]:
     filler_win.get_child_at_index.side_effect = lambda i: None
     window_kids = [filler_win, panel]
     window.get_child_count.return_value = len(window_kids)
-    window.get_child_at_index.side_effect = (
-        lambda i: window_kids[i] if i < len(window_kids) else None
+    window.get_child_at_index.side_effect = lambda i: (
+        window_kids[i] if i < len(window_kids) else None
     )
 
     app = _make_accessible("gedit", "application")
@@ -64,8 +64,8 @@ def _make_desktop_tree() -> tuple[MagicMock, dict[str, MagicMock]]:
     desktop = _make_accessible("desktop", "desktop")
     desktop_kids = [app]
     desktop.get_child_count.return_value = len(desktop_kids)
-    desktop.get_child_at_index.side_effect = (
-        lambda i: desktop_kids[i] if i < len(desktop_kids) else None
+    desktop.get_child_at_index.side_effect = lambda i: (
+        desktop_kids[i] if i < len(desktop_kids) else None
     )
 
     nodes = {

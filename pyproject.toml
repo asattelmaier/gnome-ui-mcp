@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling==1.27.0"]
+requires = ["hatchling==1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -36,8 +36,8 @@ gnome-ui-mcp = "gnome_ui_mcp.__main__:main"
 
 [dependency-groups]
 dev = [
-  "pytest>=8.0,<9",
-  "ruff==0.12.12",
+  "pytest>=8.0,<10",
+  "ruff==0.15.9",
 ]
 
 [tool.hatch.build.targets.wheel]
