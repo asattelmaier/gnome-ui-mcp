@@ -1,7 +1,7 @@
 """Tests for get_focused_element MCP tool.
 
 Verifies that the tool wraps current_focus_metadata() and returns properly
-structured results via backend and server layers.
+structured results via the desktop and server layers.
 """
 
 from __future__ import annotations

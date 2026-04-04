@@ -695,7 +695,7 @@ def find_elements(
     max_depth: int = 8,
     max_results: int = 20,
     *,
-    # Flat params for backward-compatibility with internal callers (locators.py)
+    # Flat params for internal callers (locators.py)
     query: str = "",
     app_name: str | None = None,
     role: str | None = None,
