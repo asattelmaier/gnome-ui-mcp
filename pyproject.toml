@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "mcp>=1.26.0,<2",
+  "mcp>=1.27.0,<2",
 ]
 
 [project.urls]
@@ -36,8 +36,8 @@ gnome-ui-mcp = "gnome_ui_mcp.__main__:main"
 
 [dependency-groups]
 dev = [
-  "pytest>=8.0,<10",
-  "ruff==0.15.9",
+  "pytest>=9.0.3,<10",
+  "ruff==0.15.10",
 ]
 
 [tool.hatch.build.targets.wheel]
