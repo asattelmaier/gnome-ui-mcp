@@ -37,7 +37,7 @@ gnome-ui-mcp = "gnome_ui_mcp.__main__:main"
 [dependency-groups]
 dev = [
   "pytest>=9.0.3,<10",
-  "ruff==0.15.11",
+  "ruff==0.15.12",
 ]
 
 [tool.hatch.build.targets.wheel]
