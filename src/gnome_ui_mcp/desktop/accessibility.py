@@ -33,6 +33,7 @@ def _throttled_tree_walk() -> None:
         time.sleep(_MIN_TREE_WALK_INTERVAL_S - elapsed)
     _last_tree_walk_time = time.monotonic()
 
+
 WINDOW_ROLES = {"alert", "dialog", "file chooser", "frame", "window"}
 PREFERRED_ACTIONS = ("click", "press", "activate", "jump", "open", "select", "toggle")
 MENU_ROLE_KEYWORDS = ("menu", "popup", "popover")

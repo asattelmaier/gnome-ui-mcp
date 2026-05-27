@@ -38,9 +38,7 @@ class TestThrottle:
             acc._throttled_tree_walk()
         mock_sleep.assert_not_called()
 
-    def test_immediate_second_call_sleeps_remaining_interval(
-        self, _reset_throttle: None
-    ) -> None:
+    def test_immediate_second_call_sleeps_remaining_interval(self, _reset_throttle: None) -> None:
         interval = acc._MIN_TREE_WALK_INTERVAL_S
         # Pretend the first call just happened.
         with patch.object(acc.time, "monotonic", side_effect=[100.0, 100.0]):
@@ -199,9 +197,7 @@ class TestTreeWalkLock:
             assert acc._TREE_WALK_LOCK.locked()
             return []
 
-        with patch.object(
-            acc, "_visible_shell_popup_matches", side_effect=assert_lock_held
-        ):
+        with patch.object(acc, "_visible_shell_popup_matches", side_effect=assert_lock_held):
             acc._visible_shell_popup_state(max_depth=3)
 
         # Lock released after.
