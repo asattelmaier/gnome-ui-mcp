@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 
@@ -10,6 +11,27 @@ from .locators import build_locator, remember_locator
 from .types import ElementFilter, JsonDict, TreeOptions
 
 _log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# AT-SPI query throttle — mitigates a use-after-free race in libatk-bridge
+# (GNOME/at-spi2-core#178) where iterating the accessible object cache can
+# hit freed GObjects when queries overlap with UI churn (e.g. Chrome tabs
+# opening/closing).  A global lock serialises tree walks and a minimum
+# cooldown between walks reduces the window for the race.
+# ---------------------------------------------------------------------------
+_TREE_WALK_LOCK = threading.Lock()
+_MIN_TREE_WALK_INTERVAL_S = 0.05  # 50 ms cooldown between tree walks
+_last_tree_walk_time: float = 0.0
+
+
+def _throttled_tree_walk() -> None:
+    """Sleep if needed to enforce the minimum interval between tree walks."""
+    global _last_tree_walk_time
+    now = time.monotonic()
+    elapsed = now - _last_tree_walk_time
+    if elapsed < _MIN_TREE_WALK_INTERVAL_S:
+        time.sleep(_MIN_TREE_WALK_INTERVAL_S - elapsed)
+    _last_tree_walk_time = time.monotonic()
 
 WINDOW_ROLES = {"alert", "dialog", "file chooser", "frame", "window"}
 PREFERRED_ACTIONS = ("click", "press", "activate", "jump", "open", "select", "toggle")
@@ -204,10 +226,18 @@ def _walk_tree(
         child = _safe_call(lambda idx=index: accessible.get_child_at_index(idx))
         if child is None:
             continue
+        # Guard against stale accessible objects (at-spi2-core#178):
+        # if the child was freed between get_child_count and here, any
+        # AT-SPI call on it will trigger a g_object_ref on a dead pointer
+        # inside gnome-shell.  Verify the object is still alive before
+        # recursing.
+        if _safe_call(child.get_role_name) is None:
+            continue
         yield from _walk_tree(child, path + (index,), depth=depth + 1, max_depth=max_depth)
 
 
 def _iter_applications() -> Iterable[tuple[Atspi.Accessible, tuple[int, ...]]]:
+    _throttled_tree_walk()
     desktop = _desktop()
     app_count = _safe_call(desktop.get_child_count, 0) or 0
     for index in range(app_count):
@@ -254,6 +284,9 @@ def _serialize_tree(
         for index in range(child_count):
             child = _safe_call(lambda idx=index: accessible.get_child_at_index(idx))
             if child is None:
+                continue
+            # Verify the child is still alive (at-spi2-core#178)
+            if _safe_call(child.get_role_name) is None:
                 continue
             child_node = _serialize_tree(
                 child,
@@ -489,7 +522,8 @@ def _visible_shell_popup_matches(
 
 
 def _visible_shell_popup_state(*, max_depth: int = 10) -> JsonDict:
-    popups = _visible_shell_popup_matches(max_depth=max_depth)
+    with _TREE_WALK_LOCK:
+        popups = _visible_shell_popup_matches(max_depth=max_depth)
     signature = sorted(str(item["id"]) for item in popups)
     return {
         "popups": popups,
@@ -669,21 +703,23 @@ def accessibility_tree(
 ) -> JsonDict:
     if opts is None:
         opts = TreeOptions()
-    roots = _select_applications(app_name)
-    if not roots:
-        error = f"No application matched {app_name!r}" if app_name else "No applications found"
-        return {"success": False, "error": error}
 
-    trees: list[JsonDict] = []
-    for app, path in roots:
-        tree = _serialize_tree(
-            app,
-            path,
-            depth=0,
-            opts=opts,
-        )
-        if tree is not None:
-            trees.append(tree)
+    with _TREE_WALK_LOCK:
+        roots = _select_applications(app_name)
+        if not roots:
+            error = f"No application matched {app_name!r}" if app_name else "No applications found"
+            return {"success": False, "error": error}
+
+        trees: list[JsonDict] = []
+        for app, path in roots:
+            tree = _serialize_tree(
+                app,
+                path,
+                depth=0,
+                opts=opts,
+            )
+            if tree is not None:
+                trees.append(tree)
 
     return {"success": True, "trees": trees}
 
@@ -718,76 +754,61 @@ def find_elements(
     matches: list[JsonDict] = []
     role_query = filt.role.casefold() if filt.role else None
 
-    for root in _search_roots(
-        app_name=filt.app_name,
-        within_element_id=filt.within_element_id,
-        within_popup=filt.within_popup,
-        max_depth=max_depth,
-    ):
-        app = root["accessible"]
-        app_path = root["path"]
-        app_label = str(root["application"])
-        scope = dict(root["scope"])
-        for element, path, _depth in _walk_tree(app, app_path, depth=0, max_depth=max_depth):
-            name = _safe_call(element.get_name, "")
-            description = _safe_call(element.get_description, "")
-            role_name = _safe_call(element.get_role_name, "")
-            states = _element_states(element)
+    with _TREE_WALK_LOCK:
+        for root in _search_roots(
+            app_name=filt.app_name,
+            within_element_id=filt.within_element_id,
+            within_popup=filt.within_popup,
+            max_depth=max_depth,
+        ):
+            app = root["accessible"]
+            app_path = root["path"]
+            app_label = str(root["application"])
+            scope = dict(root["scope"])
+            for element, path, _depth in _walk_tree(app, app_path, depth=0, max_depth=max_depth):
+                name = _safe_call(element.get_name, "")
+                description = _safe_call(element.get_description, "")
+                role_name = _safe_call(element.get_role_name, "")
+                states = _element_states(element)
 
-            if filt.showing_only and "showing" not in states:
-                continue
-            if filt.bounds_only and _element_bounds(element) is None:
-                continue
-
-            element_id = _path_to_id(path)
-
-            # Apply text/role filters before expensive click target resolution.
-            haystack = " ".join([app_label, name, description, role_name]).casefold()
-            if filt.query and filt.query.casefold() not in haystack:
-                continue
-            if role_query and role_query not in role_name.casefold():
-                continue
-
-            # Resolve click target (expensive O(D) walk) only for elements that
-            # passed all filters above.  When clickable_only is set, the result
-            # is also used to decide whether to include the element.
-            try:
-                click_target = _resolve_click_target_metadata(element_id)
-            except Exception:
-                if filt.clickable_only:
+                if filt.showing_only and "showing" not in states:
                     continue
-                click_target = None
+                if filt.bounds_only and _element_bounds(element) is None:
+                    continue
 
-            if (
-                filt.clickable_only
-                and click_target is not None
-                and click_target["target_id"] != element_id
-            ):
-                continue
+                element_id = _path_to_id(path)
 
-            item = _element_summary(element, path, include_actions=True, include_text=True)
-            item["application"] = app_label
-            item["scope"] = scope
-            locator = build_locator(
-                name=name,
-                description=description,
-                role_name=role_name,
-                app_label=app_label,
-                within_element_id=(
-                    str(scope["within_element_id"])
-                    if scope.get("within_element_id") is not None
-                    else None
-                ),
-                within_popup=bool(scope.get("within_popup")),
-            )
-            item["locator"] = locator.to_dict()
-            remember_locator(str(item["id"]), locator)
+                # Apply text/role filters before expensive click target resolution.
+                haystack = " ".join([app_label, name, description, role_name]).casefold()
+                if filt.query and filt.query.casefold() not in haystack:
+                    continue
+                if role_query and role_query not in role_name.casefold():
+                    continue
 
-            if click_target is not None:
-                ct_locator = build_locator(
-                    name=str(click_target.get("target_name", "")) or name,
+                # Resolve click target (expensive O(D) walk) only for elements that
+                # passed all filters above.  When clickable_only is set, the result
+                # is also used to decide whether to include the element.
+                try:
+                    click_target = _resolve_click_target_metadata(element_id)
+                except Exception:
+                    if filt.clickable_only:
+                        continue
+                    click_target = None
+
+                if (
+                    filt.clickable_only
+                    and click_target is not None
+                    and click_target["target_id"] != element_id
+                ):
+                    continue
+
+                item = _element_summary(element, path, include_actions=True, include_text=True)
+                item["application"] = app_label
+                item["scope"] = scope
+                locator = build_locator(
+                    name=name,
                     description=description,
-                    role_name=str(click_target.get("target_role", "")),
+                    role_name=role_name,
                     app_label=app_label,
                     within_element_id=(
                         str(scope["within_element_id"])
@@ -796,13 +817,29 @@ def find_elements(
                     ),
                     within_popup=bool(scope.get("within_popup")),
                 )
-                click_target["locator"] = ct_locator.to_dict()
-                remember_locator(str(click_target["target_id"]), ct_locator)
-            item["click_target"] = click_target
-            matches.append(item)
+                item["locator"] = locator.to_dict()
+                remember_locator(str(item["id"]), locator)
 
-            if len(matches) >= max_results:
-                return {"success": True, "matches": matches}
+                if click_target is not None:
+                    ct_locator = build_locator(
+                        name=str(click_target.get("target_name", "")) or name,
+                        description=description,
+                        role_name=str(click_target.get("target_role", "")),
+                        app_label=app_label,
+                        within_element_id=(
+                            str(scope["within_element_id"])
+                            if scope.get("within_element_id") is not None
+                            else None
+                        ),
+                        within_popup=bool(scope.get("within_popup")),
+                    )
+                    click_target["locator"] = ct_locator.to_dict()
+                    remember_locator(str(click_target["target_id"]), ct_locator)
+                item["click_target"] = click_target
+                matches.append(item)
+
+                if len(matches) >= max_results:
+                    return {"success": True, "matches": matches}
 
     return {"success": True, "matches": matches}
 
@@ -972,7 +1009,7 @@ def wait_for_shell_settled(
     *,
     timeout_ms: int = 1_500,
     stable_for_ms: int = 250,
-    poll_interval_ms: int = 50,
+    poll_interval_ms: int = 150,
     max_depth: int = 10,
 ) -> JsonDict:
     deadline = time.monotonic() + timeout_ms / 1000
