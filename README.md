@@ -4,6 +4,8 @@ Small MCP server for GNOME Wayland desktop automation.
 
 It exposes GNOME desktop inspection and interaction through AT-SPI for discovery and Mutter RemoteDesktop for input. In practice that means element lookup, activation, typing, screenshots, and wait helpers for the current desktop session.
 
+For navigation it follows a snapshot-driven model: take a snapshot of the active window to get stable element uids, then `click`/`fill`/`hover`/`fill_form` those uids. Stale uids are rejected rather than silently mis-targeted, and actions auto-wait for the UI to settle. See [Navigation](#navigation) below.
+
 ## Requirements
 
 - Linux host with GNOME Shell on Wayland
@@ -146,6 +148,18 @@ GNOME session environment must be available on the host.
   }
 }
 ```
+
+## Navigation
+
+The blessed way to drive the desktop is snapshot-first:
+
+1. `take_snapshot` — capture the active window (or pass `window` from `list_windows`, or `app_name`). Every element gets a stable opaque `uid` such as `7_42`.
+2. `click` / `fill` / `hover` / `fill_form` — reference elements by `uid`. Actions auto-wait for the shell to settle and report effect verification. Pass `include_snapshot=true` to get a fresh snapshot of the result in the same turn.
+3. `select_window` sets the implicit snapshot scope.
+
+A `uid` is only valid for the latest snapshot: if the UI changed and a uid is rejected as stale, call `take_snapshot` again and use a fresh one. The lower-level path-based tools (`find_elements`, `click_element`, `set_element_text`, …) remain available as advanced building blocks.
+
+Tool categories can be enabled or disabled at startup with `--category NAME` / `--no-category NAME` (for example `--category navigation --category input`).
 
 ## API Documentation
 

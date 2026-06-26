@@ -13,8 +13,12 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .runtime.gi_env import Atspi
+
+if TYPE_CHECKING:
+    from .desktop.snapshot import Snapshot
 
 _log = logging.getLogger(__name__)
 
@@ -70,6 +74,12 @@ class McpContext:
         self._event_subscriptions: dict[str, object] = {}
         self._recording_path: str | None = None
         self._processes: dict[int, object] = {}
+
+        # Navigation model: the most recent snapshot is the only source of
+        # valid element uids, and the selected window is the implicit scope
+        # for take_snapshot when no explicit target is given.
+        self._current_snapshot: Snapshot | None = None
+        self._selected_window: str | None = None
 
     def _ensure_initialized(self) -> None:
         if self._initialized:
@@ -182,6 +192,68 @@ class McpContext:
     def get_locator(self, element_id: str) -> object | None:
         return self._locators.get(element_id)
 
+    # -- navigation: snapshots, uids, selected window --
+
+    @property
+    def current_snapshot(self) -> Snapshot | None:
+        return self._current_snapshot
+
+    @property
+    def selected_window(self) -> str | None:
+        return self._selected_window
+
+    def select_window(self, window_id: str | None) -> None:
+        """Set the implicit window scope for subsequent snapshots."""
+        self._selected_window = window_id
+
+    def take_snapshot(
+        self,
+        *,
+        window_id: str | None = None,
+        app_name: str | None = None,
+        max_depth: int | None = None,
+    ) -> Snapshot:
+        """Capture a fresh snapshot, store it as the current one, and return it.
+
+        Capturing a new snapshot invalidates every uid from prior snapshots:
+        only uids present in the returned snapshot resolve afterwards.
+        """
+        from .desktop import snapshot as snapshot_module
+
+        scope_window = window_id if window_id is not None else self._selected_window
+        snapshot = snapshot_module.capture(
+            window_id=scope_window,
+            app_name=app_name,
+            max_depth=max_depth,
+        )
+        self._current_snapshot = snapshot
+        return snapshot
+
+    def resolve_uid(self, uid: str) -> str:
+        """Resolve a snapshot uid to a live element's positional path id.
+
+        Raises ``ValueError`` with an actionable, self-healing message when:
+        no snapshot has been taken, the uid is not in the current snapshot
+        (stale), or the underlying element disappeared / drifted. This is the
+        structural stale-rejection that keeps navigation trustworthy.
+        """
+        from .desktop import snapshot as snapshot_module
+
+        snapshot = self._current_snapshot
+        if snapshot is None:
+            msg = "No snapshot available. Call take_snapshot to capture one first."
+            raise ValueError(msg)
+
+        node = snapshot.id_to_node.get(uid)
+        if node is None:
+            msg = (
+                f"Element uid {uid!r} is not in the current snapshot (#{snapshot.id}). "
+                f"It may be stale -- re-run take_snapshot and use a fresh uid."
+            )
+            raise ValueError(msg)
+
+        return snapshot_module.validate_live(node)
+
     def dispose(self) -> None:
         self._desktop = None
         self._initialized = False
@@ -192,4 +264,6 @@ class McpContext:
         self._recording_path = None
         self._boundary_app = None
         self._boundary_allow_keys = []
+        self._current_snapshot = None
+        self._selected_window = None
         _log.info("McpContext disposed.")

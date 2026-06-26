@@ -322,16 +322,22 @@ async def run_streamable_http_async(server: Server | None = None) -> None:
 def run(
     transport: Literal["stdio", "sse", "streamable-http"] = "stdio",
     mount_path: str | None = None,
+    server: Server | None = None,
 ) -> None:
-    """Run the default server using the requested transport."""
+    """Run a server using the requested transport.
+
+    When ``server`` is ``None`` the module-level default (all categories) is
+    used; pass a server built via :func:`create_server` to restrict the
+    enabled tool categories.
+    """
     if transport == "stdio":
-        anyio.run(run_stdio_async)
+        anyio.run(lambda: run_stdio_async(server))
         return
     if transport == "sse":
-        anyio.run(lambda: run_sse_async(mount_path=mount_path))
+        anyio.run(lambda: run_sse_async(server=server, mount_path=mount_path))
         return
     if transport == "streamable-http":
-        anyio.run(run_streamable_http_async)
+        anyio.run(lambda: run_streamable_http_async(server))
         return
     raise ValueError(f"Unknown transport: {transport}")
 

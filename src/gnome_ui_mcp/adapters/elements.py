@@ -91,6 +91,7 @@ def click_element(
     action_name: str | None = None,
     click_count: int = 1,
     button: str = "left",
+    settle: bool = False,
 ) -> ClickResult:
     """Click an element. Raises on failure."""
     result = _require(
@@ -99,6 +100,7 @@ def click_element(
             action_name=action_name,
             click_count=click_count,
             button=button,
+            settle=settle,
         )
     )
     return ClickResult(
@@ -154,6 +156,27 @@ def find_and_activate(
 def hover_element(element_id: str) -> None:
     """Move cursor to an element's center. Raises on failure."""
     _require(_desktop_interaction.hover_element(element_id=element_id))
+
+
+@dataclass
+class FillResult:
+    element_id: str
+    method: str
+    value: str
+    input_injected: bool
+    effect_verified: bool | None
+
+
+def fill_element(element_id: str, value: str) -> FillResult:
+    """Set a value on an element, dispatching by kind. Raises on failure."""
+    result = _require(_desktop_interaction.fill_element(element_id=element_id, value=value))
+    return FillResult(
+        element_id=element_id,
+        method=str(result.get("method", "")),
+        value=value,
+        input_injected=bool(result.get("input_injected", False)),
+        effect_verified=result.get("effect_verified"),
+    )
 
 
 def resolve_click_target(element_id: str) -> ResolveClickTargetResult:

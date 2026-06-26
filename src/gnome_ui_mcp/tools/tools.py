@@ -19,6 +19,7 @@ _TOOL_MODULES: list[str] = [
     "elements",
     "input",
     "monitoring",
+    "navigation",
     "recording",
     "ocr",
     "session_tools",
