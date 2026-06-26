@@ -56,6 +56,8 @@ Central session state created lazily on first tool call:
 - Action history (`record_action`, `get_history`)
 - Locator cache
 - Backend info (screenshot, remote desktop)
+- Current snapshot + selected window (`take_snapshot`, `resolve_uid`,
+  `select_window`) -- the navigation model below
 
 ### Tools
 
@@ -97,10 +99,34 @@ data from the same source.
 Low-level integration with the GNOME desktop:
 
 - `accessibility.py`: AT-SPI tree traversal, element search
-- `interaction.py`: click, activate, keyboard, settle verification
+- `snapshot.py`: snapshot capture + stable uid minting + stale rejection
+- `interaction.py`: click, activate, fill, keyboard, settle verification
 - `input.py`: Mutter Remote Desktop + AT-SPI input fallback
 - `locators.py`: element relocation after stale IDs
 - Other modules: D-Bus, GSettings, screenshots, OCR, etc.
+
+## Navigation model
+
+The blessed, snapshot-first surface for driving GNOME:
+
+1. `take_snapshot` walks the active window (or a chosen window/app) and
+   assigns every element an opaque `uid` of the form
+   `{snapshot_id}_{index}`. It reuses `accessibility._serialize_tree`
+   (with its filters + at-spi2-core#178 liveness guards) and stores the
+   `uid -> node` map on `McpContext`.
+2. `click`, `fill`, `hover`, `fill_form` take those uids. The handler
+   calls `context.resolve_uid(uid)`, which resolves only against the
+   *current* snapshot and re-validates the live element (role + name)
+   before returning the internal positional path. Stale or drifted uids
+   raise an actionable error instead of acting on the wrong element.
+3. Actions auto-settle (wait for the shell to stabilise) and report
+   effect verification. `include_snapshot=true` attaches a fresh snapshot
+   to the response.
+
+The positional AT-SPI path (`"3/0/2"`) is an internal implementation
+detail of resolution and is never surfaced to clients. The lower-level
+path-based tools (`find_elements`, `click_element`, ...) stay available as
+advanced building blocks.
 
 ## Design Principles
 

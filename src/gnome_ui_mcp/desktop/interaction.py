@@ -310,11 +310,38 @@ def resolve_click_target(element_id: str) -> JsonDict:
     return result
 
 
+def _finalize_click(
+    result: JsonDict,
+    *,
+    before: EffectContext,
+    target_id: str,
+    input_injected: bool,
+    settle: bool,
+) -> JsonDict:
+    """Verify a click's effect, optionally waiting for the shell to settle first."""
+    if settle:
+        return _verified_result_after_settle(
+            result,
+            before=before,
+            element_id=target_id,
+            input_injected=input_injected,
+        )
+    after = _effect_context(target_id)
+    verified, verification = _verify_effect(before, after)
+    return _apply_interaction_result(
+        result,
+        input_injected=input_injected,
+        effect_verified=verified,
+        verification=verification,
+    )
+
+
 def click_element(
     element_id: str,
     action_name: str | None = None,
     click_count: int = 1,
     button: str = "left",
+    settle: bool = False,
 ) -> JsonDict:
     resolved_element_id, target, recovery = _resolve_target_with_recovery(element_id)
     target_id = str(target["target_id"])
@@ -338,13 +365,12 @@ def click_element(
                 "",
             ),
         }
-        after = _effect_context(target_id)
-        verified, verification = _verify_effect(before, after)
-        response = _apply_interaction_result(
+        response = _finalize_click(
             result,
+            before=before,
+            target_id=target_id,
             input_injected=bool(performed),
-            effect_verified=verified,
-            verification=verification,
+            settle=settle,
         )
         if recovery is not None:
             response["recovery"] = recovery
@@ -359,18 +385,17 @@ def click_element(
         }
 
     result = input.perform_mouse_click(center[0], center[1], button=button, click_count=click_count)
-    after = _effect_context(target_id)
-    verified, verification = _verify_effect(before, after)
     result["element_id"] = element_id
     result["resolved_element_id"] = resolved_element_id
     result["target_element_id"] = target_id
     result["click_target"] = target
     result["method"] = "mouse"
-    response = _apply_interaction_result(
+    response = _finalize_click(
         result,
+        before=before,
+        target_id=target_id,
         input_injected=bool(result.get("success")),
-        effect_verified=verified,
-        verification=verification,
+        settle=settle,
     )
     if recovery is not None:
         response["recovery"] = recovery
@@ -627,6 +652,73 @@ def key_combo(
     if combo_result.get("fallback_error"):
         result["fallback_error"] = combo_result["fallback_error"]
     return result
+
+
+_TOGGLE_ROLE_KEYWORDS = ("check box", "radio", "toggle", "switch")
+_TRUE_VALUES = {"true", "1", "yes", "on", "checked"}
+_FALSE_VALUES = {"false", "0", "no", "off", "unchecked"}
+
+
+def _looks_like_toggle(role_name: str, states: list[str]) -> bool:
+    if "checkable" in states:
+        return True
+    normalized = role_name.casefold()
+    return any(keyword in normalized for keyword in _TOGGLE_ROLE_KEYWORDS)
+
+
+def fill_element(
+    element_id: str,
+    value: str,
+    *,
+    opts: SettleOptions | None = None,
+) -> JsonDict:
+    """Set a value on an element, dispatching by its kind.
+
+    Toggle-like elements (checkbox/radio/switch, or anything ``checkable``)
+    interpret ``value`` as a boolean; everything else is treated as editable
+    text, so a single ``fill`` handles heterogeneous inputs. Auto-waits for
+    the shell to settle and reports effect verification.
+    """
+    if opts is None:
+        opts = SettleOptions()
+
+    try:
+        accessible = accessibility._resolve_element(element_id)
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "element_id": element_id}
+
+    states = accessibility._element_states(accessible)
+    role_name = accessibility._safe_call(accessible.get_role_name, "") or ""
+    before = _effect_context(element_id)
+
+    if _looks_like_toggle(role_name, states):
+        normalized = value.strip().casefold()
+        if normalized in _TRUE_VALUES:
+            desired = True
+        elif normalized in _FALSE_VALUES:
+            desired = False
+        else:
+            return {
+                "success": False,
+                "error": (f"Toggle element needs a boolean value (true/false), got {value!r}"),
+                "element_id": element_id,
+            }
+        outcome = accessibility.set_toggle_state(element_id, desired)
+        method = "toggle"
+    else:
+        outcome = accessibility.set_element_text(element_id, value)
+        method = "text"
+
+    if outcome.get("success") is False:
+        return {**outcome, "element_id": element_id, "method": method}
+
+    return _verified_result_after_settle(
+        {"method": method, "element_id": element_id, "value": value},
+        before=before,
+        element_id=element_id,
+        input_injected=True,
+        opts=opts,
+    )
 
 
 def hover_element(element_id: str) -> JsonDict:

@@ -24,7 +24,7 @@ class TestToolRegistration:
 
     def test_create_tools_has_expected_count(self) -> None:
         tools = create_tools()
-        assert len(tools) == 109
+        assert len(tools) == 115
 
     def test_all_tools_have_handlers(self) -> None:
         tools = create_tools()

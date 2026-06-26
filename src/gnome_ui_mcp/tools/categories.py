@@ -10,6 +10,7 @@ class ToolCategory(Enum):
     APPS = "apps"
     INPUT = "input"
     MONITORING = "monitoring"
+    NAVIGATION = "navigation"
     RECORDING = "recording"
     SESSION = "session"
     SETTINGS = "settings"
@@ -30,6 +31,7 @@ TOOL_CATEGORY_LABELS: dict[ToolCategory, str] = {
     ToolCategory.APPS: "Applications",
     ToolCategory.INPUT: "Input Automation",
     ToolCategory.MONITORING: "Monitoring",
+    ToolCategory.NAVIGATION: "Navigation",
     ToolCategory.RECORDING: "Recording",
     ToolCategory.SESSION: "Session",
     ToolCategory.SETTINGS: "Settings",
