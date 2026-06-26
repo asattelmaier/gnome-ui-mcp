@@ -1,6 +1,6 @@
 {
   "name": "gnome-ui-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "GNOME Wayland desktop automation via AT-SPI discovery and Mutter input",
   "mcpServers": {
     "gnome-ui": {

@@ -1,6 +1,6 @@
 {
   "name": "gnome-ui-plugins",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Bundled plugins for GNOME desktop automation through MCP.",
   "repository": "https://github.com/asattelmaier/gnome-ui-mcp",
   "owner": {
