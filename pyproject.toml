@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "mcp>=1.27.0,<2",
+  "mcp>=1.27.0,<3",
 ]
 
 [project.urls]
