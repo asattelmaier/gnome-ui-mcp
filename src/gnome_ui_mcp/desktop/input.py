@@ -49,6 +49,7 @@ MUTTER_SCREENCAST_SESSION_IFACE = "org.gnome.Mutter.ScreenCast.Session"
 REMOTE_POINTER_BUTTONS = {"left": 0x110, "right": 0x111, "middle": 0x112}
 SCROLL_AXIS_VERTICAL = 0
 SCROLL_AXIS_HORIZONTAL = 1
+TOUCH_WAKE_TIMEOUT_S = 0.5
 SCROLL_DIRECTION_MAP: dict[str, tuple[int, int]] = {
     "up": (SCROLL_AXIS_VERTICAL, -1),
     "down": (SCROLL_AXIS_VERTICAL, 1),
@@ -90,6 +91,21 @@ class _StageArea:
             raise ValueError(msg)
 
         return float(x - self.origin_x), float(y - self.origin_y)
+
+
+def _seat_has_touch() -> bool | None:
+    """Whether the Wayland seat advertises touch right now. None when that cannot be told."""
+    try:
+        display = Gdk.Display.get_default()
+        if display is None or "Wayland" not in type(display).__name__:
+            return None
+        context = GLib.MainContext.default()
+        while context.pending():
+            context.iteration(False)
+        capabilities = display.get_default_seat().get_capabilities()
+        return bool(capabilities & Gdk.SeatCapabilities.TOUCH)
+    except Exception:
+        return None
 
 
 class _MutterRemoteDesktopInput:
@@ -459,6 +475,21 @@ class _MutterRemoteDesktopInput:
             "backend": "mutter-remote-desktop",
         }
 
+    def _wake_touch(self, stream_path: str, x: float, y: float) -> None:
+        # A seat without a touch device only gains the touch capability with the first touch
+        # event, and that first sequence reaches no client. Spend a throwaway touch on it, but
+        # only while the seat has no touch: with touch present it would be a real tap.
+        if _seat_has_touch() is not False:
+            return
+        self._call_session(
+            "NotifyTouchDown",
+            GLib.Variant("(sudd)", (stream_path, 0, x, y)),
+        )
+        self._call_session("NotifyTouchUp", GLib.Variant("(u)", (0,)))
+        deadline = time.monotonic() + TOUCH_WAKE_TIMEOUT_S
+        while _seat_has_touch() is False and time.monotonic() < deadline:
+            time.sleep(0.01)
+
     def touch_rotate(
         self,
         center_x: int,
@@ -489,6 +520,7 @@ class _MutterRemoteDesktopInput:
         ax, ay = _pos(start_angle, 0)
         bx, by = _pos(start_angle, math.pi)
 
+        self._wake_touch(stream_path, ax, ay)
         self._call_session(
             "NotifyTouchDown",
             GLib.Variant("(sudd)", (stream_path, slot_a, ax, ay)),
